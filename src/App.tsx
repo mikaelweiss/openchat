@@ -6,6 +6,7 @@ import ShortcutsModal from './components/Shortcuts/ShortcutsModal'
 import ToastContainer from './components/Toast/Toast'
 import OnboardingModal from './components/Onboarding/OnboardingModal'
 import IntroAnimation from './components/IntroAnimation/IntroAnimation'
+import Tabs from './components/Tabs/Tabs'
 import { DEFAULT_SIDEBAR_WIDTH, TELEMETRY_CONFIG } from './shared/constants'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { MessageInputHandle } from './components/Chat/MessageInput'
@@ -34,13 +35,18 @@ function App() {
   const [modelSelectorOpen, setModelSelectorOpen] = useState(false)
   const [appStartTime] = useState(() => Date.now())
   
+  // Tab management state
+  const [openTabs, setOpenTabs] = useState<Array<{id: number | 'pending', title: string}>>([])
+  const [activeTabId, setActiveTabId] = useState<number | 'pending' | null>(null)
+  
   // Use Zustand store for conversations
   const { 
     conversations, 
     selectedConversationId, 
     setSelectedConversation,
     createPendingConversation,
-    deleteConversation: deleteConversationFromStore
+    deleteConversation: deleteConversationFromStore,
+    getConversation
   } = useConversations()
   const messageInputRef = useRef<MessageInputHandle>(null)
   
@@ -294,6 +300,47 @@ function App() {
       createPendingConversation('New Conversation', '', '')
     }
   }, [conversations.length, selectedConversationId, createPendingConversation])
+  
+  // Sync open tabs with the selected conversation
+  useEffect(() => {
+    if (selectedConversationId) {
+      const conversation = getConversation(selectedConversationId)
+      if (conversation) {
+        const newTab = { id: selectedConversationId, title: conversation.title }
+        
+        // Add tab if it doesn't exist
+        setOpenTabs(prev => {
+          if (!prev.some(tab => tab.id === selectedConversationId)) {
+            return [...prev, newTab]
+          }
+          // Update title if it exists
+          return prev.map(tab => 
+            tab.id === selectedConversationId 
+              ? { ...tab, title: conversation.title } 
+              : tab
+          )
+        })
+        
+        setActiveTabId(selectedConversationId)
+      }
+    }
+  }, [selectedConversationId, getConversation])
+  
+  // Update tab titles when conversations change
+  useEffect(() => {
+    setOpenTabs(prevTabs => {
+      let updated = false
+      const newTabs = prevTabs.map(tab => {
+        const conversation = getConversation(tab.id)
+        if (conversation && conversation.title !== tab.title) {
+          updated = true
+          return { ...tab, title: conversation.title }
+        }
+        return tab
+      })
+      return updated ? newTabs : prevTabs
+    })
+  }, [conversations, getConversation])
 
   // Handle when a conversation is deleted
   const handleConversationDeleted = async (deletedId: number | 'pending') => {
@@ -450,6 +497,61 @@ function App() {
     modelSelectorOpen
   })
 
+  // Handle creating a new tab
+  const handleNewTab = () => {
+    // Create a new pending conversation for the new tab
+    try {
+      // Get the last conversation to use its model
+      let provider = ''
+      let model = ''
+      
+      if (conversations.length > 0) {
+        const lastConversation = conversations[0] // conversations are sorted by most recent
+        provider = lastConversation.provider || ''
+        model = lastConversation.model || ''
+      }
+      
+      // Create a new pending conversation
+      createPendingConversation('New Conversation', provider, model)
+      
+      // Focus the message input after a short delay
+      setTimeout(() => {
+        messageInputRef.current?.focus()
+      }, 100)
+    } catch (err) {
+      console.error('Failed to create new conversation for tab:', err)
+    }
+  }
+
+  // Handle switching to a tab
+  const handleSwitchTab = (tabId: number | 'pending') => {
+    // Switch to existing conversation
+    setSelectedConversation(tabId)
+    setActiveTabId(tabId)
+  }
+
+  // Handle closing a tab
+  const handleCloseTab = async (tabId: number | 'pending') => {
+    // If closing the active tab, switch to another open tab if available
+    if (tabId === activeTabId) {
+      const otherTabs = openTabs.filter(tab => tab.id !== tabId)
+      if (otherTabs.length > 0) {
+        const newActiveTab = otherTabs[0]
+        setSelectedConversation(newActiveTab.id)
+        setActiveTabId(newActiveTab.id)
+      } else {
+        // No other tabs open, create a new one
+        handleNewTab()
+      }
+    }
+    
+    // Remove the tab from open tabs
+    setOpenTabs(prev => prev.filter(tab => tab.id !== tabId))
+    
+    // Delete the conversation
+    await handleConversationDeleted(tabId)
+  }
+
   return (
     <>
       {showIntroAnimation && (
@@ -477,6 +579,17 @@ function App() {
         
         <div className={`flex-1 min-w-0 flex ${!sidebarOpen ? '' : ''}`}>
           <div className="flex-1 flex flex-col min-h-0 overflow-hidden w-full">
+            {/* Tabs Bar */}
+            {!isMiniWindow && (
+              <Tabs
+                openTabs={openTabs}
+                activeTabId={activeTabId}
+                onSwitchTab={handleSwitchTab}
+                onCloseTab={handleCloseTab}
+                onNewTab={handleNewTab}
+              />
+            )}
+            
             <ChatView 
               conversationId={selectedConversationId}
               onOpenSettings={isMiniWindow ? () => {} : () => setSettingsOpen(true)} 
