@@ -154,12 +154,14 @@ export default function SettingsModal({ isOpen, onClose, initialSection = 'gener
     globalHotkey,
     showPricing,
     showConversationSettings,
+    showTabs,
     providers,
     handleThemeChange,
     handleSendKeyChange,
     handleGlobalHotkeyChange,
     handleShowPricingChange,
     handleShowConversationSettingsChange,
+    handleShowTabsChange,
     handleToggleModel,
     handleCapabilityToggle,
     handleOnboardingCompletion,
@@ -226,7 +228,7 @@ export default function SettingsModal({ isOpen, onClose, initialSection = 'gener
 
           {/* Tab Content */}
           <div className="flex-1 p-6 overflow-y-auto min-h-0">
-            {activeTab === 'general' && <GeneralSettings theme={theme} setTheme={handleThemeChange} sendKey={sendKey} setSendKey={handleSendKeyChange} showPricing={showPricing} setShowPricing={handleShowPricingChange} showConversationSettings={showConversationSettings} setShowConversationSettings={handleShowConversationSettingsChange} globalHotkey={globalHotkey} setGlobalHotkey={handleGlobalHotkeyChange} onRestartOnboarding={handleRestartOnboarding} />}
+            {activeTab === 'general' && <GeneralSettings theme={theme} setTheme={handleThemeChange} sendKey={sendKey} setSendKey={handleSendKeyChange} showPricing={showPricing} setShowPricing={handleShowPricingChange} showConversationSettings={showConversationSettings} setShowConversationSettings={handleShowConversationSettingsChange} showTabs={showTabs} setShowTabs={handleShowTabsChange} globalHotkey={globalHotkey} setGlobalHotkey={handleGlobalHotkeyChange} onRestartOnboarding={handleRestartOnboarding} />}
             {activeTab === 'models' && <ModelsSettings providers={providers} onToggleModel={handleToggleModel} onCapabilityToggle={handleCapabilityToggle} onAddProvider={async (name, endpoint, apiKey, isLocal) => await addProvider({ name, endpoint, apiKey, isLocal })} onUpdateProvider={async (providerId, updates) => await updateProvider(providerId, updates)} onRemoveProvider={removeProvider} onRefreshModels={refreshProviderModels} />}
             {activeTab === 'about' && <AboutSettings />}
           </div>
@@ -386,7 +388,7 @@ function HotkeyCapture({ value, onChange, onClear }: { value: string, onChange: 
   )
 }
 
-function GeneralSettings({ theme, setTheme, sendKey, setSendKey, showPricing, setShowPricing, showConversationSettings, setShowConversationSettings, globalHotkey, setGlobalHotkey, onRestartOnboarding }: any) {
+function GeneralSettings({ theme, setTheme, sendKey, setSendKey, showPricing, setShowPricing, showConversationSettings, setShowConversationSettings, showTabs, setShowTabs, globalHotkey, setGlobalHotkey, onRestartOnboarding }: any) {
   const handleClearHotkey = () => {
     setGlobalHotkey('')
   }
@@ -465,6 +467,24 @@ function GeneralSettings({ theme, setTheme, sendKey, setSendKey, showPricing, se
               </label>
               <p className="text-xs text-muted-foreground mt-1">
                 Display a settings icon next to the message input to access advanced conversation options like temperature, system prompt, and other model parameters.
+              </p>
+            </div>
+          </div>
+          
+          <div className="flex items-start gap-3">
+            <input
+              type="checkbox"
+              id="showTabs"
+              checked={showTabs}
+              onChange={(e) => setShowTabs(e.target.checked)}
+              className="mt-1 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+            />
+            <div className="flex-1">
+              <label htmlFor="showTabs" className="text-sm font-medium cursor-pointer">
+                Enable tabs
+              </label>
+              <p className="text-xs text-muted-foreground mt-1">
+                Enable tabbed interface for managing multiple conversations. When disabled, only one conversation is shown at a time.
               </p>
             </div>
           </div>

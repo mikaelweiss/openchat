@@ -52,6 +52,7 @@ export const SETTINGS_KEYS = {
   GLOBAL_HOTKEY: 'globalHotkey',
   SHOW_PRICING: 'showPricing',
   SHOW_CONVERSATION_SETTINGS: 'showConversationSettings',
+  SHOW_TABS: 'showTabs',
   PROVIDERS: 'providers',
   HAS_COMPLETED_ONBOARDING: 'hasCompletedOnboarding',
   USER_NAME: 'userName',

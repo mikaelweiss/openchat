@@ -51,7 +51,7 @@ function App() {
   const messageInputRef = useRef<MessageInputHandle>(null)
   
   // Initialize settings (theme will be applied in useSettings hook)
-  const { handleThemeChange, theme, hasCompletedOnboarding, isLoading: settingsLoading } = useSettings()
+  const { handleThemeChange, theme, hasCompletedOnboarding, isLoading: settingsLoading, showTabs } = useSettings()
   
   // Check if intro has been shown before
   useEffect(() => {
@@ -310,15 +310,28 @@ function App() {
         
         // Add tab if it doesn't exist
         setOpenTabs(prev => {
-          if (!prev.some(tab => tab.id === selectedConversationId)) {
+          // Check if we're transitioning from a pending to a persistent conversation
+          const hadPendingTab = prev.some(tab => tab.id === 'pending')
+          const isNewPersistentFromPending = selectedConversationId !== 'pending' && typeof selectedConversationId === 'number' && hadPendingTab
+          
+          if (isNewPersistentFromPending) {
+            // Replace the pending tab with the new persistent tab
+            return prev.map(tab => 
+              tab.id === 'pending' 
+                ? newTab 
+                : tab
+            )
+          } else if (!prev.some(tab => tab.id === selectedConversationId)) {
+            // Add new tab if it doesn't exist (normal case)
             return [...prev, newTab]
+          } else {
+            // Update title if tab exists
+            return prev.map(tab => 
+              tab.id === selectedConversationId 
+                ? { ...tab, title: conversation.title } 
+                : tab
+            )
           }
-          // Update title if it exists
-          return prev.map(tab => 
-            tab.id === selectedConversationId 
-              ? { ...tab, title: conversation.title } 
-              : tab
-          )
         })
         
         setActiveTabId(selectedConversationId)
@@ -580,7 +593,7 @@ function App() {
         <div className={`flex-1 min-w-0 flex ${!sidebarOpen ? '' : ''}`}>
           <div className="flex-1 flex flex-col min-h-0 overflow-hidden w-full">
             {/* Tabs Bar */}
-            {!isMiniWindow && (
+            {!isMiniWindow && showTabs && (
               <Tabs
                 openTabs={openTabs}
                 activeTabId={activeTabId}

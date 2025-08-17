@@ -14,6 +14,7 @@ export interface AppSettings {
   globalHotkey: string
   showPricing: boolean
   showConversationSettings: boolean
+  showTabs: boolean
   providers: Record<string, Provider>
   hasCompletedOnboarding: boolean
   userName: string
@@ -25,6 +26,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   globalHotkey: '',
   showPricing: false,
   showConversationSettings: false,
+  showTabs: false,
   hasCompletedOnboarding: false,
   userName: '',
   providers: {}
@@ -238,6 +240,10 @@ export function useSettings() {
 
   const handleShowConversationSettingsChange = async (show: boolean) => {
     await updateSetting('showConversationSettings', show)
+  }
+
+  const handleShowTabsChange = async (show: boolean) => {
+    await updateSetting('showTabs', show)
   }
 
 
@@ -542,6 +548,7 @@ export function useSettings() {
     globalHotkey: settingsManager.settings.globalHotkey,
     showPricing: settingsManager.settings.showPricing,
     showConversationSettings: settingsManager.settings.showConversationSettings,
+    showTabs: settingsManager.settings.showTabs,
     providers: settingsManager.settings.providers,
     hasCompletedOnboarding: settingsManager.settings.hasCompletedOnboarding,
     userName: settingsManager.settings.userName,
@@ -562,6 +569,7 @@ export function useSettings() {
     handleGlobalHotkeyChange,
     handleShowPricingChange,
     handleShowConversationSettingsChange,
+    handleShowTabsChange,
     handleToggleModel,
     handleCapabilityToggle,
     handleUserNameChange,
