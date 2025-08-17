@@ -308,7 +308,7 @@ function App() {
       if (conversation) {
         const newTab = { id: selectedConversationId, title: conversation.title }
         
-        // Add tab if it doesn't exist
+        // Manage tabs - ensure no duplicates and proper transitions
         setOpenTabs(prev => {
           // Check if we're transitioning from a pending to a persistent conversation
           const hadPendingTab = prev.some(tab => tab.id === 'pending')
@@ -321,16 +321,12 @@ function App() {
                 ? newTab 
                 : tab
             )
-          } else if (!prev.some(tab => tab.id === selectedConversationId)) {
-            // Add new tab if it doesn't exist (normal case)
-            return [...prev, newTab]
           } else {
-            // Update title if tab exists
-            return prev.map(tab => 
-              tab.id === selectedConversationId 
-                ? { ...tab, title: conversation.title } 
-                : tab
-            )
+            // For all other cases, ensure no duplicate tabs exist
+            // First, remove any existing tab with the same ID
+            const filteredTabs = prev.filter(tab => tab.id !== selectedConversationId)
+            // Then add the new/updated tab
+            return [...filteredTabs, newTab]
           }
         })
         
@@ -563,6 +559,27 @@ function App() {
     
     // Delete the conversation
     await handleConversationDeleted(tabId)
+    
+    // If we've closed all tabs, make sure we have at least one pending conversation
+    // This can happen if we close the last "New Conversation" tab
+    if (openTabs.length === 1 && !selectedConversationId) {
+      // Check if we need to create a new pending conversation
+      const state = useAppStore.getState()
+      if (!state.pendingConversation) {
+        // Get the last conversation's model to inherit it (if any)
+        let provider = ''
+        let model = ''
+        
+        if (state.conversations.length > 0) {
+          const lastConversation = state.conversations[0] // conversations are sorted by most recent
+          provider = lastConversation.provider || ''
+          model = lastConversation.model || ''
+        }
+        
+        // Create a new pending conversation
+        createPendingConversation('New Conversation', provider, model)
+      }
+    }
   }
 
   return (
