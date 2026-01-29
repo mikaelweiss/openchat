@@ -157,7 +157,7 @@ class MessageDatabase {
       console.log('Migration v3: Backfilled previous_message_id and provider/model data')
       
     } catch (err) {
-      const errorMessage = (err as Error).message
+      const errorMessage = err instanceof Error ? err.message : String(err)
       if (errorMessage.includes('duplicate column name')) {
         console.log('Migration v3: Columns already exist, skipping')
       } else {

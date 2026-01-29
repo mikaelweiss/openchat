@@ -56,7 +56,7 @@ class ConversationDatabase {
           await this.db.execute(`INSERT OR REPLACE INTO schema_version (version) VALUES (1)`)
           console.log('Migration 1: Added settings column to conversations table')
         } catch (err) {
-          const errorMessage = (err as Error).message
+          const errorMessage = err instanceof Error ? err.message : String(err)
           if (errorMessage.includes('duplicate column name')) {
             // Column already exists, just update version
             await this.db.execute(`INSERT OR REPLACE INTO schema_version (version) VALUES (1)`)

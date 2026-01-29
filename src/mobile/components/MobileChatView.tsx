@@ -217,7 +217,7 @@ export default function MobileChatView({ conversationId, onSelectConversation }:
         }
       }
 
-      await addMessageToStore(activeConversationId, userMessage)
+      const userMessageId = await addMessageToStore(activeConversationId, userMessage)
       telemetryService.trackMessageSent(effectiveProvider, effectiveModel, message.length)
 
       const modelConfigs = await chatService.createModelConfigs(
@@ -242,6 +242,7 @@ export default function MobileChatView({ conversationId, onSelectConversation }:
       await chatService.sendMessage({
         conversationId: activeConversationId,
         userMessage,
+        userMessageId: typeof userMessageId === 'number' ? userMessageId : undefined,
         systemPrompt: currentConversation?.system_prompt || undefined,
         models: modelConfigs,
         signal: controller.signal,

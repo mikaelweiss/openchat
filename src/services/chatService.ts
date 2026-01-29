@@ -298,7 +298,8 @@ class ChatService {
     // Add conversation history - filter to create model-specific history
     for (const message of conversationHistory) {
       if (message.role === 'system') continue // Skip system messages from history (we use systemPrompt)
-      
+      if (userMessageId && message.id === userMessageId) continue // Skip the current user message (added separately below)
+
       // Include all user messages
       if (message.role === 'user') {
         const content = this.buildMessageContent({

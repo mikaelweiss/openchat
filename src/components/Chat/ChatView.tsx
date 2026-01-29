@@ -842,7 +842,7 @@ const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(function ChatView({ c
           
           // Track error type
           let errorType = 'unknown'
-          const errorMessage = error.message.toLowerCase()
+          const errorMessage = (error.message || '').toLowerCase()
           if (errorMessage.includes('rate limit')) {
             errorType = 'rate_limit'
             telemetryService.trackRateLimitError(provider, model)
