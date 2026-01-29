@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { ChevronLeft, ChevronRight, RefreshCw, Trash2, Key, ExternalLink, AlertTriangle } from 'lucide-react'
 import clsx from 'clsx'
 import { Provider } from '../../types/provider'
-import { open } from '@tauri-apps/plugin-shell'
+import { openUrl } from '@tauri-apps/plugin-opener'
 
 interface MobileProviderSettingsProps {
   providerId: string
@@ -101,10 +101,10 @@ export default function MobileProviderSettings({
     }
   }
 
-  const openApiKeyUrl = async () => {
+  const handleOpenApiKeyUrl = async () => {
     if (providerPreset?.apiKeyUrl) {
       try {
-        await open(providerPreset.apiKeyUrl)
+        await openUrl(providerPreset.apiKeyUrl)
       } catch {
         window.open(providerPreset.apiKeyUrl, '_blank')
       }
@@ -200,7 +200,7 @@ export default function MobileProviderSettings({
                     </button>
                     {providerPreset?.apiKeyUrl && (
                       <button
-                        onClick={openApiKeyUrl}
+                        onClick={handleOpenApiKeyUrl}
                         className="w-full flex items-center justify-between px-4 py-4 border-t border-border/10 active:bg-accent/50 transition-colors"
                       >
                         <div className="flex items-center gap-3">
