@@ -364,18 +364,21 @@ const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(function ChatView({ c
   useEffect(() => {
     // If we have available models
     if (availableModels.length > 0) {
+      // Get conversation directly from store to avoid race condition with state
+      const conversation = conversationId ? getConversation(conversationId) : null
+
       // Check if current selected model is still available
       if (selectedModel) {
         const isModelStillAvailable = availableModels.some(
           model => model.provider === selectedModel.provider && model.model === selectedModel.model
         )
-        
+
         if (!isModelStillAvailable) {
           console.log('Selected model is no longer available, auto-selecting first available')
           // Auto-select the first available model
           const firstModel = availableModels[0]
           setSelectedModel({ provider: firstModel.provider, model: firstModel.model })
-          
+
           // Update conversation if applicable
           if (conversationId) {
             updateConversation(conversationId, {
@@ -384,12 +387,12 @@ const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(function ChatView({ c
             }).catch(err => console.error('Failed to update conversation model:', err))
           }
         }
-      } else if (!currentConversation?.model) {
+      } else if (!conversation?.model) {
         // No model selected and no conversation model, auto-select first available
         console.log('No model selected, auto-selecting first available')
         const firstModel = availableModels[0]
         setSelectedModel({ provider: firstModel.provider, model: firstModel.model })
-        
+
         // Update conversation if applicable
         if (conversationId) {
           updateConversation(conversationId, {
@@ -402,7 +405,7 @@ const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(function ChatView({ c
       // No models available
       setSelectedModel(null)
     }
-  }, [availableModels, selectedModel, conversationId, updateConversation, currentConversation?.model])
+  }, [availableModels, selectedModel, conversationId, updateConversation, getConversation])
   
   // Auto-focus input when app opens and model is ready
   useEffect(() => {

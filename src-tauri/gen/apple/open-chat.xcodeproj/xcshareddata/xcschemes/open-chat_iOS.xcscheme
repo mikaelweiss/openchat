@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "BF2067611E7328B686E5CA73"
-               BuildableName = "Open Chat by Mike.app"
+               BuildableName = "Open Chat.app"
                BlueprintName = "open-chat_iOS"
                ReferencedContainer = "container:open-chat.xcodeproj">
             </BuildableReference>
@@ -31,7 +31,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "BF2067611E7328B686E5CA73"
-            BuildableName = "Open Chat by Mike.app"
+            BuildableName = "Open Chat.app"
             BlueprintName = "open-chat_iOS"
             ReferencedContainer = "container:open-chat.xcodeproj">
          </BuildableReference>
@@ -66,7 +66,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "BF2067611E7328B686E5CA73"
-            BuildableName = "Open Chat by Mike.app"
+            BuildableName = "Open Chat.app"
             BlueprintName = "open-chat_iOS"
             ReferencedContainer = "container:open-chat.xcodeproj">
          </BuildableReference>
@@ -95,7 +95,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "BF2067611E7328B686E5CA73"
-            BuildableName = "Open Chat by Mike.app"
+            BuildableName = "Open Chat.app"
             BlueprintName = "open-chat_iOS"
             ReferencedContainer = "container:open-chat.xcodeproj">
          </BuildableReference>

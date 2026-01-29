@@ -34,7 +34,9 @@ export default function MobileSettings({ onBack }: MobileSettingsProps) {
     addProvider,
     updateProvider,
     removeProvider,
-    refreshProviderModels
+    refreshProviderModels,
+    handleToggleModel,
+    handleCapabilityToggle
   } = useSettings()
   const { providers } = useProviders()
 
@@ -83,6 +85,8 @@ export default function MobileSettings({ onBack }: MobileSettingsProps) {
         onUpdateApiKey={handleUpdateApiKey}
         onRefreshModels={refreshProviderModels}
         onRemoveProvider={removeProvider}
+        onToggleModel={handleToggleModel}
+        onCapabilityToggle={handleCapabilityToggle}
         providerPreset={getProviderPreset(selectedProviderId)}
       />
     )

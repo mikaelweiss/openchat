@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { ChevronLeft, ChevronRight, RefreshCw, Trash2, Key, ExternalLink, AlertTriangle } from 'lucide-react'
+import { ChevronLeft, RefreshCw, Trash2, Key, ExternalLink, AlertTriangle, Search, Eye, Volume2, FileText, ImageIcon, Brain, Hammer, Globe } from 'lucide-react'
 import clsx from 'clsx'
-import { Provider } from '../../types/provider'
+import { Provider, ModelCapabilities } from '../../types/provider'
 import { openUrl } from '@tauri-apps/plugin-opener'
 
 interface MobileProviderSettingsProps {
@@ -11,7 +11,97 @@ interface MobileProviderSettingsProps {
   onUpdateApiKey: (providerId: string, apiKey: string) => Promise<void>
   onRefreshModels: (providerId: string) => Promise<void>
   onRemoveProvider: (providerId: string) => Promise<void>
+  onToggleModel: (providerId: string, modelName: string, enabled: boolean) => void
+  onCapabilityToggle: (modelId: string, providerId: string, capability: 'vision' | 'audio' | 'files' | 'image' | 'thinking' | 'tools' | 'webSearch', enabled: boolean) => void
   providerPreset?: { apiKeyUrl?: string }
+}
+
+function ModelCapabilityIcons({
+  capabilities,
+  modelId,
+  providerId,
+  onCapabilityToggle,
+  expanded,
+  onExpandToggle
+}: {
+  capabilities?: ModelCapabilities
+  modelId?: string
+  providerId?: string
+  onCapabilityToggle?: (modelId: string, providerId: string, capability: 'vision' | 'audio' | 'files' | 'image' | 'thinking' | 'tools' | 'webSearch', enabled: boolean) => void
+  expanded?: boolean
+  onExpandToggle?: () => void
+}) {
+  if (!capabilities) return null
+
+  const handleCapabilityClick = (capability: 'vision' | 'audio' | 'files' | 'image' | 'thinking' | 'tools' | 'webSearch') => {
+    if (modelId && providerId && onCapabilityToggle) {
+      const currentValue = capabilities[capability as keyof ModelCapabilities]
+      onCapabilityToggle(modelId, providerId, capability, !currentValue)
+    }
+  }
+
+  const capabilityItems = [
+    { key: 'vision' as const, icon: Eye, enabled: capabilities.vision, color: 'text-blue-500', title: 'Vision' },
+    { key: 'audio' as const, icon: Volume2, enabled: capabilities.audio, color: 'text-green-500', title: 'Audio' },
+    { key: 'files' as const, icon: FileText, enabled: capabilities.files, color: 'text-orange-500', title: 'Files' },
+    { key: 'image' as const, icon: ImageIcon, enabled: capabilities?.image || false, color: 'text-pink-500', title: 'Image' },
+    { key: 'thinking' as const, icon: Brain, enabled: capabilities?.thinking || false, color: 'text-purple-500', title: 'Reasoning' },
+    { key: 'tools' as const, icon: Hammer, enabled: capabilities?.tools || false, color: 'text-yellow-500', title: 'Tools' },
+    { key: 'webSearch' as const, icon: Globe, enabled: capabilities?.webSearch || false, color: 'text-cyan-500', title: 'Web' }
+  ]
+
+  const isClickable = modelId && providerId && onCapabilityToggle
+  const enabledCapabilities = capabilityItems.filter(item => item.enabled)
+  const disabledCapabilities = capabilityItems.filter(item => !item.enabled)
+
+  if (expanded) {
+    return (
+      <div className="mt-2 pt-2 border-t border-border/10">
+        <div className="grid grid-cols-2 gap-2">
+          {capabilityItems.map(({ key, icon: Icon, enabled, color, title }) => (
+            <button
+              key={key}
+              onClick={() => isClickable && handleCapabilityClick(key)}
+              className={clsx(
+                "flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors text-left",
+                enabled ? "bg-accent/30" : "bg-secondary/50",
+                isClickable && "active:bg-accent/50"
+              )}
+            >
+              <Icon className={clsx("w-4 h-4 flex-shrink-0", enabled ? color : "text-gray-400")} />
+              <span className={clsx("text-xs", enabled ? "text-foreground" : "text-muted-foreground")}>
+                {title}
+              </span>
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={onExpandToggle}
+          className="w-full mt-2 text-xs text-muted-foreground text-center py-1"
+        >
+          Collapse
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex items-center gap-0.5 flex-shrink-0">
+      {enabledCapabilities.slice(0, 2).map(({ key, icon: Icon, color }) => (
+        <div key={key} className="p-0.5">
+          <Icon className={clsx("w-4 h-4", color)} />
+        </div>
+      ))}
+      {(enabledCapabilities.length > 2 || disabledCapabilities.length > 0) && (
+        <button
+          onClick={onExpandToggle}
+          className="text-xs text-primary px-1.5 py-0.5 rounded bg-primary/10 ml-1"
+        >
+          {enabledCapabilities.length > 2 ? `+${enabledCapabilities.length - 2}` : '···'}
+        </button>
+      )}
+    </div>
+  )
 }
 
 export default function MobileProviderSettings({
@@ -21,6 +111,8 @@ export default function MobileProviderSettings({
   onUpdateApiKey,
   onRefreshModels,
   onRemoveProvider,
+  onToggleModel,
+  onCapabilityToggle,
   providerPreset
 }: MobileProviderSettingsProps) {
   const [showApiKeyInput, setShowApiKeyInput] = useState(false)
@@ -28,6 +120,10 @@ export default function MobileProviderSettings({
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false)
   const [isSavingKey, setIsSavingKey] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [latestOnly, setLatestOnly] = useState(false)
+  const [showCapabilityLegend, setShowCapabilityLegend] = useState(false)
+  const [expandedModel, setExpandedModel] = useState<string | null>(null)
 
   const handleRefreshModels = async () => {
     setIsRefreshing(true)
@@ -111,6 +207,60 @@ export default function MobileProviderSettings({
     }
   }
 
+  const hasDateSuffix = (modelName: string): boolean => {
+    const datePatterns = [
+      /-\d{8}$/,
+      /-\d{4}-\d{2}-\d{2}$/,
+      /-\d{4}$/,
+      /-\d{6}$/,
+    ]
+    return datePatterns.some(pattern => pattern.test(modelName))
+  }
+
+  const getBaseModelName = (modelName: string): string => {
+    return modelName
+      .replace(/-\d{8}$/, '')
+      .replace(/-\d{4}-\d{2}-\d{2}$/, '')
+      .replace(/-\d{4}$/, '')
+      .replace(/-\d{6}$/, '')
+  }
+
+  const allModels = provider.models || []
+
+  let filteredModels = allModels.filter(model =>
+    model.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
+  if (latestOnly) {
+    const modelsByBase = filteredModels.reduce((acc, model) => {
+      const baseName = getBaseModelName(model)
+      if (!acc[baseName]) {
+        acc[baseName] = []
+      }
+      acc[baseName].push(model)
+      return acc
+    }, {} as Record<string, string[]>)
+
+    filteredModels = filteredModels.filter(model => {
+      const baseName = getBaseModelName(model)
+      const modelsWithSameBase = modelsByBase[baseName]
+
+      if (modelsWithSameBase.length === 1) {
+        return true
+      }
+
+      const hasNonDatedVersion = modelsWithSameBase.some(m => !hasDateSuffix(m))
+
+      if (hasNonDatedVersion) {
+        return !hasDateSuffix(model)
+      }
+
+      return true
+    })
+  }
+
+  const sortedModels = filteredModels.sort((a, b) => a.localeCompare(b))
+
   return (
     <div className="mobile-app flex flex-col bg-background text-foreground">
       <header className="mobile-header flex-shrink-0 flex items-center gap-3 px-4 py-3 border-b border-border/10 glass-nav backdrop-blur-strong">
@@ -139,7 +289,7 @@ export default function MobileProviderSettings({
                     {provider.connected ? 'Connected' : 'Disconnected'}
                   </span>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {provider.enabledModels?.length || 0} model{(provider.enabledModels?.length || 0) !== 1 ? 's' : ''} enabled
+                    {provider.enabledModels?.length || 0} of {provider.models?.length || 0} models enabled
                   </p>
                 </div>
                 <button
@@ -196,7 +346,6 @@ export default function MobileProviderSettings({
                         <Key className="h-5 w-5 text-muted-foreground" />
                         <span className="text-foreground/90">Update API Key</span>
                       </div>
-                      <ChevronRight className="h-5 w-5 text-muted-foreground" />
                     </button>
                     {providerPreset?.apiKeyUrl && (
                       <button
@@ -207,7 +356,6 @@ export default function MobileProviderSettings({
                           <ExternalLink className="h-5 w-5 text-muted-foreground" />
                           <span className="text-foreground/90">Get API Key</span>
                         </div>
-                        <ChevronRight className="h-5 w-5 text-muted-foreground" />
                       </button>
                     )}
                   </>
@@ -217,25 +365,158 @@ export default function MobileProviderSettings({
           )}
 
           <section>
-            <h2 className="text-sm font-semibold text-muted-foreground mb-3 px-1">ENABLED MODELS</h2>
+            <div className="flex items-center justify-between mb-3 px-1">
+              <h2 className="text-sm font-semibold text-muted-foreground">MODELS</h2>
+              <button
+                onClick={() => setShowCapabilityLegend(!showCapabilityLegend)}
+                className="text-xs text-primary"
+              >
+                {showCapabilityLegend ? 'Hide' : 'Show'} Legend
+              </button>
+            </div>
+
+            {showCapabilityLegend && (
+              <div className="bg-card rounded-2xl border border-border/20 p-4 mb-4">
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <h5 className="font-medium mb-2 text-muted-foreground">Input</h5>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Eye className="w-4 h-4 text-blue-500" />
+                        <span>Vision</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Volume2 className="w-4 h-4 text-green-500" />
+                        <span>Audio</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-orange-500" />
+                        <span>Files</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <h5 className="font-medium mb-2 text-muted-foreground">Output</h5>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <ImageIcon className="w-4 h-4 text-pink-500" />
+                        <span>Images</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Brain className="w-4 h-4 text-purple-500" />
+                        <span>Reasoning</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Hammer className="w-4 h-4 text-yellow-500" />
+                        <span>Tools</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Globe className="w-4 h-4 text-cyan-500" />
+                        <span>Web Search</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="bg-card rounded-2xl border border-border/20 overflow-hidden mb-4">
+              <div className="p-3 border-b border-border/10">
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 flex items-center gap-2 px-3 py-2 bg-secondary rounded-xl">
+                    <Search className="h-4 w-4 text-muted-foreground" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Search models..."
+                      className="flex-1 bg-transparent focus:outline-none text-sm"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 mt-3">
+                  <input
+                    type="checkbox"
+                    id="latest-only-mobile"
+                    checked={latestOnly}
+                    onChange={(e) => setLatestOnly(e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                  <label htmlFor="latest-only-mobile" className="text-sm text-muted-foreground">
+                    Latest only
+                  </label>
+                </div>
+              </div>
+            </div>
+
             <div className="bg-card rounded-2xl border border-border/20 overflow-hidden">
-              {provider.enabledModels?.length === 0 ? (
+              {sortedModels.length === 0 ? (
                 <div className="px-4 py-6 text-center text-muted-foreground">
-                  <p className="text-sm">No models enabled</p>
-                  <p className="text-xs mt-1">Refresh to fetch available models</p>
+                  {allModels.length === 0 ? (
+                    <>
+                      <p className="text-sm">No models available</p>
+                      <p className="text-xs mt-1">Refresh to fetch available models</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm">No models match your search</p>
+                      <p className="text-xs mt-1">Try a different search term</p>
+                    </>
+                  )}
                 </div>
               ) : (
-                provider.enabledModels?.map((modelName, index) => (
-                  <div
-                    key={modelName}
-                    className={clsx(
-                      'px-4 py-3',
-                      index !== (provider.enabledModels?.length || 0) - 1 && 'border-b border-border/10'
-                    )}
-                  >
-                    <span className="text-foreground/90 text-sm">{modelName}</span>
-                  </div>
-                ))
+                sortedModels.map((modelName, index) => {
+                  const isEnabled = provider.enabledModels?.includes(modelName)
+                  const capabilities = provider.modelCapabilities?.[modelName]
+                  const isExpanded = expandedModel === modelName
+
+                  return (
+                    <div
+                      key={modelName}
+                      className={clsx(
+                        'px-4 py-3',
+                        index !== sortedModels.length - 1 && 'border-b border-border/10'
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={isEnabled}
+                          onChange={(e) => onToggleModel(providerId, modelName, e.target.checked)}
+                          className="h-5 w-5 rounded border-gray-300 text-primary focus:ring-primary flex-shrink-0"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <span className={clsx(
+                            "text-sm block truncate",
+                            isEnabled ? "text-foreground/90" : "text-muted-foreground"
+                          )}>
+                            {modelName}
+                          </span>
+                        </div>
+                        {!isExpanded && (
+                          <ModelCapabilityIcons
+                            capabilities={capabilities}
+                            modelId={modelName}
+                            providerId={providerId}
+                            onCapabilityToggle={onCapabilityToggle}
+                            expanded={false}
+                            onExpandToggle={() => setExpandedModel(modelName)}
+                          />
+                        )}
+                      </div>
+                      {isExpanded && (
+                        <ModelCapabilityIcons
+                          capabilities={capabilities}
+                          modelId={modelName}
+                          providerId={providerId}
+                          onCapabilityToggle={onCapabilityToggle}
+                          expanded={true}
+                          onExpandToggle={() => setExpandedModel(null)}
+                        />
+                      )}
+                    </div>
+                  )
+                })
               )}
             </div>
           </section>
