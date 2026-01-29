@@ -262,7 +262,7 @@
 		0A1C5E79CDED06992FE06ECB /* debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
 				SDKROOT = iphoneos;
 			};
 			name = debug;
@@ -318,7 +318,7 @@
 		C9FAC2B4203709FC17D641E2 /* release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
 				SDKROOT = iphoneos;
 			};
 			name = release;

@@ -133,6 +133,20 @@ src-tauri/              # Rust backend
    pnpm tauri ios dev
    ```
 
+#### iOS Troubleshooting
+
+If the iOS build fails after disconnecting a device or interrupting a build (e.g., "No such file or directory" errors during Xcode library linking), clean the build cache:
+
+```bash
+cd src-tauri && cargo clean
+```
+
+If that doesn't work, also clear Xcode's derived data:
+
+```bash
+rm -rf ~/Library/Developer/Xcode/DerivedData/open-chat-*
+```
+
 ### Android Setup
 
 1. **Install Android Studio**
