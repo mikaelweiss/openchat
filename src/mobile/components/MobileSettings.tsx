@@ -1,16 +1,45 @@
-import { ChevronLeft, Sun, Moon, Monitor, Check } from 'lucide-react'
+import { useState } from 'react'
+import { ChevronLeft, ChevronRight, Sun, Moon, Monitor, Check, Plus } from 'lucide-react'
 import clsx from 'clsx'
 import { useSettings } from '../../hooks/useSettings'
 import { useProviders } from '../../stores/appStore'
 import Logo from '../../assets/Logo.svg'
+import MobileProviderSettings from './MobileProviderSettings'
+import MobileAddProvider from './MobileAddProvider'
+
+const providerPresets = [
+  { id: 'openai', name: 'OpenAI', apiKeyUrl: 'https://platform.openai.com/api-keys' },
+  { id: 'anthropic', name: 'Anthropic', apiKeyUrl: 'https://console.anthropic.com/settings/keys' },
+  { id: 'inception-labs', name: 'Inception Labs', apiKeyUrl: 'https://api.inceptionlabs.ai' },
+  { id: 'deep-infra', name: 'Deep Infra', apiKeyUrl: 'https://deepinfra.com/dash/api_keys' },
+  { id: 'openrouter', name: 'Open Router', apiKeyUrl: 'https://openrouter.ai/keys' },
+  { id: 'groq', name: 'Groq', apiKeyUrl: 'https://console.groq.com/keys' },
+  { id: 'xai', name: 'xAI', apiKeyUrl: 'https://console.x.ai/team/api-keys' },
+  { id: 'google-ai', name: 'Google AI', apiKeyUrl: 'https://aistudio.google.com/app/apikey' },
+  { id: 'fireworks-ai', name: 'Fireworks AI', apiKeyUrl: 'https://fireworks.ai/api-keys' },
+  { id: 'together-ai', name: 'Together AI', apiKeyUrl: 'https://api.together.xyz/settings/api-keys' },
+  { id: 'cerebras-cloud', name: 'Cerebras Cloud', apiKeyUrl: 'https://cloud.cerebras.ai/platform' },
+  { id: 'cohere', name: 'Cohere', apiKeyUrl: 'https://dashboard.cohere.ai/api-keys' },
+  { id: 'local', name: 'Local', isLocal: true }
+]
 
 interface MobileSettingsProps {
   onBack: () => void
 }
 
 export default function MobileSettings({ onBack }: MobileSettingsProps) {
-  const { theme, handleThemeChange } = useSettings()
+  const {
+    theme,
+    handleThemeChange,
+    addProvider,
+    updateProvider,
+    removeProvider,
+    refreshProviderModels
+  } = useSettings()
   const { providers } = useProviders()
+
+  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null)
+  const [showAddProvider, setShowAddProvider] = useState(false)
 
   const themeOptions = [
     { value: 'light' as const, label: 'Light', icon: Sun },
@@ -18,9 +47,46 @@ export default function MobileSettings({ onBack }: MobileSettingsProps) {
     { value: 'system' as const, label: 'System', icon: Monitor }
   ]
 
-  const connectedProviders = Object.entries(providers || {}).filter(
-    ([_, provider]) => provider.connected
-  )
+  const allProviders = Object.entries(providers || {})
+
+  const handleUpdateApiKey = async (providerId: string, apiKey: string) => {
+    await updateProvider(providerId, { apiKey })
+  }
+
+  const handleAddProvider = async (name: string, endpoint: string, apiKey?: string, isLocal?: boolean) => {
+    await addProvider({ name, endpoint, apiKey, isLocal })
+  }
+
+  const getProviderPreset = (providerId: string) => {
+    return providerPresets.find(p =>
+      p.id === providerId ||
+      p.name.toLowerCase().replace(/\s+/g, '-') === providerId
+    )
+  }
+
+  if (showAddProvider) {
+    return (
+      <MobileAddProvider
+        onBack={() => setShowAddProvider(false)}
+        onAddProvider={handleAddProvider}
+        existingProviderIds={Object.keys(providers || {})}
+      />
+    )
+  }
+
+  if (selectedProviderId && providers[selectedProviderId]) {
+    return (
+      <MobileProviderSettings
+        providerId={selectedProviderId}
+        provider={providers[selectedProviderId]}
+        onBack={() => setSelectedProviderId(null)}
+        onUpdateApiKey={handleUpdateApiKey}
+        onRefreshModels={refreshProviderModels}
+        onRemoveProvider={removeProvider}
+        providerPreset={getProviderPreset(selectedProviderId)}
+      />
+    )
+  }
 
   return (
     <div className="mobile-app h-screen flex flex-col bg-background text-foreground">
@@ -65,31 +131,53 @@ export default function MobileSettings({ onBack }: MobileSettingsProps) {
           </section>
 
           <section>
-            <h2 className="text-sm font-semibold text-muted-foreground mb-3 px-1">CONNECTED PROVIDERS</h2>
+            <div className="flex items-center justify-between mb-3 px-1">
+              <h2 className="text-sm font-semibold text-muted-foreground">PROVIDERS</h2>
+              <button
+                onClick={() => setShowAddProvider(true)}
+                className="flex items-center gap-1 text-sm text-primary"
+              >
+                <Plus className="h-4 w-4" />
+                Add
+              </button>
+            </div>
             <div className="bg-card rounded-2xl border border-border/20 overflow-hidden">
-              {connectedProviders.length === 0 ? (
-                <div className="px-4 py-6 text-center text-muted-foreground">
-                  <p className="text-sm">No providers connected</p>
-                  <p className="text-xs mt-1">Configure providers in the desktop app</p>
+              {allProviders.length === 0 ? (
+                <div className="px-4 py-6 text-center">
+                  <p className="text-sm text-muted-foreground">No providers configured</p>
+                  <button
+                    onClick={() => setShowAddProvider(true)}
+                    className="mt-3 px-4 py-2 text-sm bg-primary text-white rounded-xl active:bg-primary/90 transition-colors"
+                  >
+                    Add Provider
+                  </button>
                 </div>
               ) : (
-                connectedProviders.map(([id, provider], index) => (
-                  <div
+                allProviders.map(([id, provider], index) => (
+                  <button
                     key={id}
+                    onClick={() => setSelectedProviderId(id)}
                     className={clsx(
-                      'flex items-center justify-between px-4 py-3',
-                      index !== connectedProviders.length - 1 && 'border-b border-border/10'
+                      'w-full flex items-center justify-between px-4 py-3',
+                      index !== allProviders.length - 1 && 'border-b border-border/10',
+                      'active:bg-accent/50 transition-colors'
                     )}
                   >
-                    <div>
-                      <span className="text-foreground/90 font-medium">{provider.name}</span>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {provider.enabledModels?.length || 0} model
-                        {(provider.enabledModels?.length || 0) !== 1 ? 's' : ''} enabled
-                      </p>
+                    <div className="flex items-center gap-3">
+                      <div className={clsx(
+                        'w-2 h-2 rounded-full',
+                        provider.connected ? 'bg-green-500' : 'bg-gray-400'
+                      )} />
+                      <div className="text-left">
+                        <span className="text-foreground/90 font-medium">{provider.name}</span>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {provider.enabledModels?.length || 0} model
+                          {(provider.enabledModels?.length || 0) !== 1 ? 's' : ''} enabled
+                        </p>
+                      </div>
                     </div>
-                    <div className="w-2 h-2 rounded-full bg-green-500" />
-                  </div>
+                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                  </button>
                 ))
               )}
             </div>

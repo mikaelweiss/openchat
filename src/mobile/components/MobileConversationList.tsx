@@ -1,7 +1,7 @@
 import { format } from 'date-fns'
-import { Star, Trash2 } from 'lucide-react'
+import { Star, Trash2, Search } from 'lucide-react'
 import clsx from 'clsx'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useConversations, useAppStore } from '../../stores/appStore'
 import { type Conversation } from '../../shared/conversationStore'
 import { type PendingConversation } from '../../stores/appStore'
@@ -15,9 +15,10 @@ const isPersistentConversation = (conv: SidebarConversation): conv is Conversati
 
 interface MobileConversationListProps {
   onSelectConversation: (id: number | 'pending' | null) => void
+  searchQuery?: string
 }
 
-export default function MobileConversationList({ onSelectConversation }: MobileConversationListProps) {
+export default function MobileConversationList({ onSelectConversation, searchQuery = '' }: MobileConversationListProps) {
   const { conversations, deleteConversation, selectedConversationId } = useConversations()
   const getMessages = useAppStore((state) => state.getMessages)
   const [deletingId, setDeletingId] = useState<number | 'pending' | null>(null)
@@ -35,9 +36,25 @@ export default function MobileConversationList({ onSelectConversation }: MobileC
     }
   }
 
+  const filteredConversations = useMemo(() => {
+    if (!searchQuery.trim()) return conversations
+
+    const query = searchQuery.toLowerCase()
+    return conversations.filter(conv => {
+      if (conv.title.toLowerCase().includes(query)) {
+        return true
+      }
+
+      const messages = getMessages(conv.id)
+      return messages.some(msg =>
+        msg.text?.toLowerCase().includes(query)
+      )
+    })
+  }, [conversations, searchQuery, getMessages])
+
   const getConversationsByDate = () => {
-    const favorites = conversations.filter(conv => isPersistentConversation(conv) && conv.is_favorite)
-    const regular = conversations.filter(conv => !isPersistentConversation(conv) || !conv.is_favorite)
+    const favorites = filteredConversations.filter(conv => isPersistentConversation(conv) && conv.is_favorite)
+    const regular = filteredConversations.filter(conv => !isPersistentConversation(conv) || !conv.is_favorite)
 
     const regularByDate = regular.reduce((acc, conv) => {
       const date = new Date(conv.updated_at)
@@ -64,6 +81,24 @@ export default function MobileConversationList({ onSelectConversation }: MobileC
 
   const { favorites, regularByDate } = getConversationsByDate()
 
+  const highlightMatch = (text: string, query: string) => {
+    if (!query.trim()) return text
+
+    const lowerText = text.toLowerCase()
+    const lowerQuery = query.toLowerCase()
+    const index = lowerText.indexOf(lowerQuery)
+
+    if (index === -1) return text
+
+    return (
+      <>
+        {text.slice(0, index)}
+        <span className="bg-primary/30 rounded px-0.5">{text.slice(index, index + query.length)}</span>
+        {text.slice(index + query.length)}
+      </>
+    )
+  }
+
   const renderConversation = (conversation: SidebarConversation) => {
     const isSelected = selectedConversationId === conversation.id
     const isDeleting = deletingId === conversation.id
@@ -87,7 +122,9 @@ export default function MobileConversationList({ onSelectConversation }: MobileC
             {isPersistentConversation(conversation) && conversation.is_favorite && (
               <Star className="h-3 w-3 fill-primary text-primary flex-shrink-0" />
             )}
-            <span className="truncate text-foreground/90">{conversation.title}</span>
+            <span className="truncate text-foreground/90">
+              {searchQuery ? highlightMatch(conversation.title, searchQuery) : conversation.title}
+            </span>
           </div>
           <div className="text-xs text-muted-foreground mt-1 truncate">
             {modelDisplay} • {format(new Date(conversation.updated_at), 'h:mm a')}
@@ -104,7 +141,15 @@ export default function MobileConversationList({ onSelectConversation }: MobileC
     )
   }
 
-  if (conversations.length === 0) {
+  if (filteredConversations.length === 0) {
+    if (searchQuery.trim()) {
+      return (
+        <div className="flex flex-col items-center justify-center h-32 text-muted-foreground">
+          <Search className="h-8 w-8 mb-2 opacity-50" />
+          <p className="text-sm">No results for "{searchQuery}"</p>
+        </div>
+      )
+    }
     return (
       <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">
         No conversations yet

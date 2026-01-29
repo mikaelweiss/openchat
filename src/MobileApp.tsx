@@ -1,17 +1,21 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import MobileHeader from './mobile/components/MobileHeader'
 import MobileDrawer from './mobile/components/MobileDrawer'
 import MobileChatView from './mobile/components/MobileChatView'
 import MobileSettings from './mobile/components/MobileSettings'
+import MobileModelSelector from './mobile/components/MobileModelSelector'
+import MobileOnboarding from './mobile/components/MobileOnboarding'
 import ToastContainer from './components/Toast/Toast'
 import { TELEMETRY_CONFIG } from './shared/constants'
-import { useConversations, useAppStore } from './stores/appStore'
+import { useConversations, useAppStore, useProviders } from './stores/appStore'
 import { initializeAppStore } from './stores/appStore'
 import { telemetryService } from './services/telemetryService'
+import { useSettings } from './hooks/useSettings'
 
 function MobileApp() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [showModelSelector, setShowModelSelector] = useState(false)
   const [appStartTime] = useState(() => Date.now())
 
   const {
@@ -19,10 +23,16 @@ function MobileApp() {
     selectedConversationId,
     setSelectedConversation,
     createPendingConversation,
-    getConversation
+    getConversation,
+    updateConversation
   } = useConversations()
 
+  useProviders()
+  const { settings } = useSettings()
+
   const currentConversation = selectedConversationId ? getConversation(selectedConversationId) : null
+
+  const showOnboarding = settings?.hasCompletedOnboarding === false
 
   useEffect(() => {
     const initialize = async () => {
@@ -49,6 +59,21 @@ function MobileApp() {
     }
   }, [conversations.length, selectedConversationId, createPendingConversation])
 
+  const currentModel = useMemo(() => {
+    if (!currentConversation?.model || !currentConversation?.provider) {
+      return null
+    }
+    return {
+      provider: currentConversation.provider,
+      model: currentConversation.model
+    }
+  }, [currentConversation?.model, currentConversation?.provider])
+
+  const modelDisplayName = useMemo(() => {
+    if (!currentModel) return null
+    return currentModel.model
+  }, [currentModel])
+
   const handleSelectConversation = (id: number | 'pending' | null) => {
     setSelectedConversation(id)
     setDrawerOpen(false)
@@ -73,6 +98,20 @@ function MobileApp() {
     setDrawerOpen(false)
   }
 
+  const handleModelSelect = async (provider: string, model: string) => {
+    if (selectedConversationId) {
+      try {
+        await updateConversation(selectedConversationId, { provider, model })
+      } catch (err) {
+        console.error('Failed to update conversation model:', err)
+      }
+    }
+  }
+
+  if (showOnboarding) {
+    return <MobileOnboarding onComplete={() => {}} />
+  }
+
   if (showSettings) {
     return (
       <MobileSettings onBack={() => setShowSettings(false)} />
@@ -83,8 +122,10 @@ function MobileApp() {
     <div className="mobile-app h-screen flex flex-col bg-background text-foreground overflow-hidden">
       <MobileHeader
         title={currentConversation?.title || 'New Conversation'}
+        subtitle={modelDisplayName || undefined}
         onMenuPress={() => setDrawerOpen(true)}
         onNewChat={handleNewChat}
+        onTitlePress={() => setShowModelSelector(true)}
       />
 
       <MobileChatView
@@ -100,6 +141,14 @@ function MobileApp() {
           setDrawerOpen(false)
           setShowSettings(true)
         }}
+      />
+
+      <MobileModelSelector
+        isOpen={showModelSelector}
+        onClose={() => setShowModelSelector(false)}
+        selectedProvider={currentModel?.provider}
+        selectedModel={currentModel?.model}
+        onSelect={handleModelSelect}
       />
 
       <ToastContainer />

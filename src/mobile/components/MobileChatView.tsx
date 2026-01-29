@@ -1,6 +1,12 @@
 import { useState, useEffect, useMemo } from 'react'
+import { Settings } from 'lucide-react'
+import clsx from 'clsx'
 import MessageList from '../../components/Chat/MessageList'
 import MobileMessageInput from './MobileMessageInput'
+import MobileConversationSettings, {
+  type ConversationSettings,
+  defaultSettings
+} from './MobileConversationSettings'
 import { useProviders, useMessages, useConversations } from '../../stores/appStore'
 import { type PendingConversation } from '../../stores/appStore'
 import { type Conversation } from '../../shared/conversationStore'
@@ -18,6 +24,8 @@ export default function MobileChatView({ conversationId, onSelectConversation }:
   const [isLoading, setIsLoading] = useState(false)
   const [currentConversation, setCurrentConversation] = useState<Conversation | PendingConversation | null>(null)
   const [selectedModel, setSelectedModel] = useState<{ provider: string; model: string } | null>(null)
+  const [showConversationSettings, setShowConversationSettings] = useState(false)
+  const [conversationSettings, setConversationSettings] = useState<ConversationSettings | null>(null)
 
   const {
     messages,
@@ -99,8 +107,12 @@ export default function MobileChatView({ conversationId, onSelectConversation }:
     }
   }, [availableModels, selectedModel, conversationId, updateConversation, currentConversation?.model])
 
-  const handleSend = async (message: string) => {
-    if (!conversationId || !message.trim()) return
+  const handleSend = async (
+    message: string,
+    attachments?: Array<{path: string; base64: string; mimeType: string; name: string; type: 'image' | 'audio' | 'file'}>,
+    reasoningEffort?: 'none' | 'low' | 'medium' | 'high'
+  ) => {
+    if (!conversationId || (!message.trim() && !attachments?.length)) return
 
     const effectiveProvider = currentConversation?.provider || selectedModel?.provider
     const effectiveModel = currentConversation?.model || selectedModel?.model
@@ -166,6 +178,45 @@ export default function MobileChatView({ conversationId, onSelectConversation }:
         text: message
       }
 
+      if (attachments && attachments.length > 0) {
+        const images = attachments
+          .filter(att => att.type === 'image')
+          .map(att => ({
+            file_path: att.base64,
+            mime_type: att.mimeType,
+            url: `data:${att.mimeType};base64,${att.base64}`
+          }))
+
+        if (images.length > 0) {
+          userMessage.images = images
+        }
+
+        const audioFiles = attachments
+          .filter(att => att.type === 'audio')
+          .map(att => ({
+            file_path: att.base64,
+            mime_type: att.mimeType,
+            url: `data:${att.mimeType};base64,${att.base64}`
+          }))
+
+        if (audioFiles.length > 0) {
+          userMessage.audio = audioFiles
+        }
+
+        const files = attachments
+          .filter(att => att.type === 'file')
+          .map(att => ({
+            path: att.path,
+            name: att.name,
+            type: att.mimeType,
+            content: att.base64
+          }))
+
+        if (files.length > 0) {
+          userMessage.files = files
+        }
+      }
+
       await addMessageToStore(activeConversationId, userMessage)
       telemetryService.trackMessageSent(effectiveProvider, effectiveModel, message.length)
 
@@ -173,7 +224,19 @@ export default function MobileChatView({ conversationId, onSelectConversation }:
         [{ provider: effectiveProvider, model: effectiveModel }],
         providers,
         getProviderApiKey,
-        {}
+        {
+          ...(conversationSettings && {
+            temperature: conversationSettings.temperature,
+            maxTokens: conversationSettings.max_tokens,
+            topP: conversationSettings.top_p,
+            frequencyPenalty: conversationSettings.frequency_penalty,
+            presencePenalty: conversationSettings.presence_penalty,
+            stop: conversationSettings.stop.length > 0 ? conversationSettings.stop : undefined,
+            n: conversationSettings.n,
+            seed: conversationSettings.seed,
+          }),
+          reasoningEffort
+        }
       )
 
       await chatService.sendMessage({
@@ -281,15 +344,33 @@ export default function MobileChatView({ conversationId, onSelectConversation }:
 
   const hasModel = !!(currentConversation?.model || selectedModel?.model)
 
+  const handleSaveConversationSettings = (newSettings: ConversationSettings) => {
+    setConversationSettings(newSettings)
+  }
+
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <div className="flex-1 min-h-0">
+      <div className="flex-1 min-h-0 relative">
         <MessageList
           messages={messages}
           streamingMessage={streamingMessage}
           streamingMessagesByModel={streamingMessagesByModel}
           isLoading={isLoading && isCurrentConversationWaiting}
         />
+
+        {conversationId && hasModel && (
+          <button
+            onClick={() => setShowConversationSettings(true)}
+            className={clsx(
+              'absolute top-3 right-3 p-2.5 rounded-xl z-10 transition-all',
+              'bg-background/80 backdrop-blur-sm border border-border/20',
+              'text-muted-foreground active:text-primary active:bg-accent/50'
+            )}
+            aria-label="Conversation settings"
+          >
+            <Settings className="h-5 w-5" />
+          </button>
+        )}
       </div>
 
       <MobileMessageInput
@@ -299,6 +380,13 @@ export default function MobileChatView({ conversationId, onSelectConversation }:
         isLoading={isLoading && isCurrentConversationWaiting}
         noProvider={!hasModel}
         modelCapabilities={currentModelCapabilities}
+      />
+
+      <MobileConversationSettings
+        isOpen={showConversationSettings}
+        onClose={() => setShowConversationSettings(false)}
+        settings={conversationSettings || defaultSettings}
+        onSave={handleSaveConversationSettings}
       />
     </div>
   )
