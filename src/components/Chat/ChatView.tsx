@@ -21,9 +21,10 @@ import { getConversationModelDisplay } from '../../utils/conversationUtils'
 interface ChatViewProps {
   conversationId?: number | 'pending' | null
   onOpenSettings?: () => void
-  messageInputRef?: RefObject<MessageInputHandle>
+  messageInputRef?: RefObject<MessageInputHandle | null>
   onSelectConversation?: (conversationId: number | 'pending' | null) => void
   isMiniWindow?: boolean
+  isMobile?: boolean
   modelSelectorOpen?: boolean
   onToggleModelSelector?: () => void
 }
@@ -98,7 +99,7 @@ export interface ChatViewHandle {
   handlePreviousModel: () => void
 }
 
-const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(function ChatView({ conversationId, messageInputRef: externalMessageInputRef, onSelectConversation, isMiniWindow = false, modelSelectorOpen = false, onToggleModelSelector }: ChatViewProps, ref) {
+const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(function ChatView({ conversationId, messageInputRef: externalMessageInputRef, onSelectConversation, isMiniWindow = false, isMobile = false, modelSelectorOpen = false, onToggleModelSelector }: ChatViewProps, ref) {
   const internalMessageInputRef = useRef<MessageInputHandle>(null)
   const messageInputRef = externalMessageInputRef || internalMessageInputRef
   
@@ -929,13 +930,16 @@ const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(function ChatView({ c
     <div className="h-full flex flex-col min-w-0">
       
       {/* Header */}
-      <div className="border-b border-border/10 px-6 pt-8 pb-4 w-full glass-nav backdrop-blur-strong flex-shrink-0 select-none"
-           onMouseDown={handleStartDrag}
+      <div className={clsx(
+        "border-b border-border/10 pb-4 w-full glass-nav backdrop-blur-strong flex-shrink-0 select-none",
+        isMobile ? "px-4 pt-4 mobile-chat-header" : "px-6 pt-8"
+      )}
+           onMouseDown={isMobile ? undefined : handleStartDrag}
       >
         <div className="flex items-center justify-between w-full gap-4">
-          <div 
-            className="min-w-0 flex-1 select-none" 
-            onMouseDown={handleStartDrag}
+          <div
+            className="min-w-0 flex-1 select-none"
+            onMouseDown={isMobile ? undefined : handleStartDrag}
           >
             <h2 className="text-lg font-semibold truncate text-foreground/95 tracking-tight">
               {currentConversation?.title || 'New Conversation'}
@@ -1068,7 +1072,7 @@ const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(function ChatView({ c
         </div>
 
       {/* Input - fixed at bottom */}
-      <div className="flex-shrink-0">
+      <div className={clsx("flex-shrink-0", isMobile && "mobile-input-container")}>
         <MessageInput
           ref={messageInputRef}
           onSend={handleSend}

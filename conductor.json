@@ -1,5 +1,5 @@
 {
   "scripts": {
-    "setup": "# Copy configuration files\n# cp \"$CONDUCTOR_ROOT_PATH/.env\" .\n\n# Install dependencies\npnpm install"
+    "setup": "# Copy configuration files\n# cp \"$CONDUCTOR_ROOT_PATH/.env\" .\n\n# Install dependencies\nbun install"
   }
 }

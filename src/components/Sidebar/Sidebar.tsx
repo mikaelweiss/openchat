@@ -36,6 +36,7 @@ interface SidebarProps {
   selectedConversationId?: number | 'pending' | null
   onSelectConversation?: (conversationId: number | 'pending' | null) => void
   onDeleteConversation?: (deletedId: number | 'pending') => void
+  isMobile?: boolean
 }
 
 const Sidebar = forwardRef<SidebarHandle, SidebarProps>(({
@@ -48,6 +49,7 @@ const Sidebar = forwardRef<SidebarHandle, SidebarProps>(({
   selectedConversationId,
   onSelectConversation,
   onDeleteConversation,
+  isMobile = false,
 }, ref) => {
   const { conversations, deleteConversation, toggleConversationFavorite, createPendingConversation, updateConversation } = useConversations()
   const getMessages = useAppStore((state) => state.getMessages)
@@ -286,7 +288,10 @@ const Sidebar = forwardRef<SidebarHandle, SidebarProps>(({
         </button>
         <button
           onClick={(e) => handleDeleteClick(e, conversation)}
-          className="absolute right-2 p-1.5 opacity-0 group-hover:opacity-100 hover:bg-destructive/20 hover:text-destructive rounded-lg transition-all duration-200 hover:scale-110"
+          className={clsx(
+            "absolute right-2 p-1.5 hover:bg-destructive/20 hover:text-destructive rounded-lg transition-all duration-200",
+            isMobile ? "opacity-70" : "opacity-0 group-hover:opacity-100 hover:scale-110"
+          )}
           title="Delete conversation (hold ⌘ to skip confirmation)"
         >
           <Trash2 className="h-4 w-4" />
@@ -453,7 +458,7 @@ const Sidebar = forwardRef<SidebarHandle, SidebarProps>(({
           {/* Header */}
           <div
             className="px-6 py-4 pt-11 border-b border-border/10 glass-nav backdrop-blur-strong select-none"
-            onMouseDown={handleStartDrag}
+            onMouseDown={isMobile ? undefined : handleStartDrag}
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -500,25 +505,27 @@ const Sidebar = forwardRef<SidebarHandle, SidebarProps>(({
         </div>
       </div>
 
-      {/* Resize Handle */}
-      {isOpen && (
+      {/* Resize Handle - hidden on mobile */}
+      {isOpen && !isMobile && (
         <div
           className="absolute -right-1 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/20 transition-colors"
           onMouseDown={handleMouseDown}
         />
       )}
 
-      {/* Toggle Button */}
-      <button
-        onClick={onToggle}
-        className="absolute -right-3 top-1/2 -translate-y-1/2 glass-effect border border-border/20 rounded-full p-1.5 elegant-hover no-drag z-50 text-muted-foreground hover:text-primary shadow-elegant hover:scale-110 transition-transform duration-200"
-      >
-        {isOpen ? (
-          <ChevronLeft className="h-4 w-4" />
-        ) : (
-          <ChevronRight className="h-4 w-4" />
-        )}
-      </button>
+      {/* Toggle Button - hidden on mobile */}
+      {!isMobile && (
+        <button
+          onClick={onToggle}
+          className="absolute -right-3 top-1/2 -translate-y-1/2 glass-effect border border-border/20 rounded-full p-1.5 elegant-hover no-drag z-50 text-muted-foreground hover:text-primary shadow-elegant hover:scale-110 transition-transform duration-200"
+        >
+          {isOpen ? (
+            <ChevronLeft className="h-4 w-4" />
+          ) : (
+            <ChevronRight className="h-4 w-4" />
+          )}
+        </button>
+      )}
 
       {/* Confirmation Dialog */}
       {confirmDelete && (
