@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from 'react'
-import { Menu } from 'lucide-react'
 import Sidebar, { SidebarHandle } from './components/Sidebar/Sidebar'
 import ChatView from './components/Chat/ChatView'
 import SettingsModal from './components/Settings/SettingsModal'
@@ -11,7 +10,6 @@ import { DEFAULT_SIDEBAR_WIDTH, TELEMETRY_CONFIG } from './shared/constants'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { MessageInputHandle } from './components/Chat/MessageInput'
 import { useSettings } from './hooks/useSettings'
-import { usePlatform } from './hooks/usePlatform'
 import { useConversations, useAppStore } from './stores/appStore'
 import { initializeAppStore } from './stores/appStore'
 import { messageSync } from './utils/messageSync'
@@ -27,11 +25,8 @@ function App() {
   // Check if we're in mini window mode
   const isMiniWindow = new URLSearchParams(window.location.search).get('window') === 'mini'
 
-  // Platform detection
-  const { isMobile } = usePlatform()
-
   const [showIntroAnimation, setShowIntroAnimation] = useState(false) // Will be set based on settings
-  const [sidebarOpen, setSidebarOpen] = useState(!isMiniWindow && !isMobile) // Hide sidebar on mobile by default
+  const [sidebarOpen, setSidebarOpen] = useState(!isMiniWindow)
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsSection, setSettingsSection] = useState<'general' | 'models' | 'about'>('general')
@@ -477,12 +472,6 @@ function App() {
     modelSelectorOpen
   })
 
-  const handleCloseSidebarOnMobile = () => {
-    if (isMobile) {
-      setSidebarOpen(false)
-    }
-  }
-
   return (
     <>
       {showIntroAnimation && (
@@ -493,52 +482,20 @@ function App() {
         }} />
       )}
 
-      <div className={`flex h-screen bg-background text-foreground overflow-hidden ${isMiniWindow ? 'mini-window' : ''} ${isMobile ? 'mobile-app' : ''}`}>
-        {/* Mobile hamburger menu button */}
-        {isMobile && !isMiniWindow && (
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="mobile-menu-button"
-            aria-label="Toggle menu"
-          >
-            <Menu className="h-5 w-5 text-foreground" />
-          </button>
-        )}
-
-        {/* Mobile sidebar overlay */}
-        {isMobile && !isMiniWindow && (
-          <div
-            className={`mobile-sidebar-overlay ${sidebarOpen ? 'visible' : ''}`}
-            onClick={() => setSidebarOpen(false)}
-          />
-        )}
-
-        {/* Sidebar - overlay on mobile, normal on desktop */}
+      <div className={`flex h-screen bg-background text-foreground overflow-hidden ${isMiniWindow ? 'mini-window' : ''}`}>
         {!isMiniWindow && (
-          <div className={isMobile ? `mobile-sidebar ${sidebarOpen ? 'open' : ''}` : ''}>
-            <Sidebar
-              ref={sidebarRef}
-              isOpen={isMobile ? true : sidebarOpen}
-              width={isMobile ? 320 : sidebarWidth}
-              onToggle={() => setSidebarOpen(!sidebarOpen)}
-              onWidthChange={isMobile ? () => {} : setSidebarWidth}
-              onOpenSettings={() => {
-                setSettingsOpen(true)
-                handleCloseSidebarOnMobile()
-              }}
-              onOpenShortcuts={() => {
-                setShortcutsOpen(true)
-                handleCloseSidebarOnMobile()
-              }}
-              selectedConversationId={selectedConversationId}
-              onSelectConversation={(id) => {
-                setSelectedConversation(id)
-                handleCloseSidebarOnMobile()
-              }}
-              onDeleteConversation={handleConversationDeleted}
-              isMobile={isMobile}
-            />
-          </div>
+          <Sidebar
+            ref={sidebarRef}
+            isOpen={sidebarOpen}
+            width={sidebarWidth}
+            onToggle={() => setSidebarOpen(!sidebarOpen)}
+            onWidthChange={setSidebarWidth}
+            onOpenSettings={() => setSettingsOpen(true)}
+            onOpenShortcuts={() => setShortcutsOpen(true)}
+            selectedConversationId={selectedConversationId}
+            onSelectConversation={setSelectedConversation}
+            onDeleteConversation={handleConversationDeleted}
+          />
         )}
 
         <div className={`flex-1 min-w-0 flex ${!sidebarOpen ? '' : ''}`}>
@@ -550,7 +507,6 @@ function App() {
               messageInputRef={messageInputRef}
               onSelectConversation={setSelectedConversation}
               isMiniWindow={isMiniWindow}
-              isMobile={isMobile}
               modelSelectorOpen={modelSelectorOpen}
               onToggleModelSelector={handleToggleModelSelector}
             />
@@ -565,17 +521,14 @@ function App() {
               initialSection={settingsSection}
             />
 
-            {!isMobile && (
-              <ShortcutsModal
-                isOpen={shortcutsOpen}
-                onClose={() => setShortcutsOpen(false)}
-              />
-            )}
+            <ShortcutsModal
+              isOpen={shortcutsOpen}
+              onClose={() => setShortcutsOpen(false)}
+            />
 
             <OnboardingModal
               isOpen={onboardingOpen}
               onClose={() => setOnboardingOpen(false)}
-              isMobile={isMobile}
             />
           </>
         )}

@@ -27,6 +27,7 @@
     "dialog:allow-message",
     "process:default",
     "process:allow-restart",
+    "os:default",
     "fs:default",
     "fs:allow-read-file",
     "core:window:allow-destroy",

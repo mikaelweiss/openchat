@@ -10,12 +10,11 @@ import ProviderScreen from './ProviderScreen'
 interface OnboardingModalProps {
   isOpen: boolean
   onClose: () => void
-  isMobile?: boolean
 }
 
 type OnboardingScreen = 'welcome' | 'theme' | 'name' | 'hotkey' | 'provider'
 
-export default function OnboardingModal({ isOpen, onClose, isMobile = false }: OnboardingModalProps) {
+export default function OnboardingModal({ isOpen, onClose }: OnboardingModalProps) {
   const [currentScreen, setCurrentScreen] = useState<OnboardingScreen>('welcome')
   const { handleOnboardingCompletion } = useSettings()
 
@@ -89,25 +88,16 @@ export default function OnboardingModal({ isOpen, onClose, isMobile = false }: O
   }
 
   return (
-    <div className={`fixed inset-0 z-[9999] flex items-center justify-center ${isMobile ? 'p-0' : 'p-4'}`}
-      style={isMobile ? {
-        paddingTop: 'env(safe-area-inset-top)',
-        paddingBottom: 'env(safe-area-inset-bottom)',
-        paddingLeft: 'env(safe-area-inset-left)',
-        paddingRight: 'env(safe-area-inset-right)',
-      } : undefined}
-    >
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
 
       {/* Modal */}
-      <div className={`relative w-full bg-background border border-border shadow-xl overflow-hidden flex flex-col ${
-        isMobile ? 'h-full rounded-none' : 'max-w-2xl max-h-[90vh] rounded-lg'
-      }`}>
+      <div className="relative w-full bg-background border border-border shadow-xl overflow-hidden flex flex-col max-w-2xl max-h-[90vh] rounded-lg">
         {/* Header */}
-        <div className={`flex items-center justify-between border-b border-border ${isMobile ? 'p-4' : 'p-6'}`}>
+        <div className="flex items-center justify-between border-b border-border p-6">
           <div className="flex items-center space-x-3">
-            <h2 className={`font-semibold text-foreground ${isMobile ? 'text-lg' : 'text-xl'}`}>Welcome to Open Chat</h2>
+            <h2 className="font-semibold text-foreground text-xl">Welcome to Open Chat</h2>
           </div>
           <button
             onClick={handleClose}
@@ -119,7 +109,7 @@ export default function OnboardingModal({ isOpen, onClose, isMobile = false }: O
         </div>
 
         {/* Progress indicator */}
-        <div className={`border-b border-border ${isMobile ? 'px-4 py-2' : 'px-6 py-2'}`}>
+        <div className="border-b border-border px-6 py-2">
           <div className="flex space-x-2">
             {screens.map((screen, index) => (
               <div
@@ -136,7 +126,7 @@ export default function OnboardingModal({ isOpen, onClose, isMobile = false }: O
         </div>
 
         {/* Content - scrollable */}
-        <div className={`flex-1 overflow-y-auto ${isMobile ? 'min-h-0' : 'min-h-[400px]'}`}>
+        <div className="flex-1 overflow-y-auto min-h-[400px]">
           {renderScreen()}
         </div>
       </div>
