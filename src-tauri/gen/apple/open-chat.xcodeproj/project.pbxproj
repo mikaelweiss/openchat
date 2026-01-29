@@ -185,6 +185,11 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					BF2067611E7328B686E5CA73 = {
+						DevelopmentTeam = 976SMHMA6R;
+					};
+				};
 			};
 			buildConfigurationList = C84E8B5C79465795F9ECA244 /* Build configuration list for PBXProject "open-chat" */;
 			compatibilityVersion = "Xcode 14.0";
@@ -238,7 +243,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "pnpm tauri ios xcode-script -v --platform ${PLATFORM_DISPLAY_NAME:?} --sdk-root ${SDKROOT:?} --framework-search-paths \"${FRAMEWORK_SEARCH_PATHS:?}\" --header-search-paths \"${HEADER_SEARCH_PATHS:?}\" --gcc-preprocessor-definitions \"${GCC_PREPROCESSOR_DEFINITIONS:-}\" --configuration ${CONFIGURATION:?} ${FORCE_COLOR} ${ARCHS:?}";
+			shellScript = "bun tauri ios xcode-script -v --platform ${PLATFORM_DISPLAY_NAME:?} --sdk-root ${SDKROOT:?} --framework-search-paths \"${FRAMEWORK_SEARCH_PATHS:?}\" --header-search-paths \"${HEADER_SEARCH_PATHS:?}\" --gcc-preprocessor-definitions \"${GCC_PREPROCESSOR_DEFINITIONS:-}\" --configuration ${CONFIGURATION:?} ${FORCE_COLOR} ${ARCHS:?}";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -270,6 +275,7 @@
 					arm64,
 				);
 				CODE_SIGN_ENTITLEMENTS = "open-chat_iOS/open-chat_iOS.entitlements";
+				DEVELOPMENT_TEAM = "976SMHMA6R";
 				ENABLE_BITCODE = NO;
 				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
 				FRAMEWORK_SEARCH_PATHS = (
@@ -282,7 +288,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = org.weisssolutions.openchat;
 				PRODUCT_NAME = "Open Chat";
 				VALID_ARCHS = arm64;
-				DEVELOPMENT_TEAM = "976SMHMA6R";
 			};
 			name = debug;
 		};
@@ -294,6 +299,7 @@
 					arm64,
 				);
 				CODE_SIGN_ENTITLEMENTS = "open-chat_iOS/open-chat_iOS.entitlements";
+				DEVELOPMENT_TEAM = "976SMHMA6R";
 				ENABLE_BITCODE = NO;
 				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
 				FRAMEWORK_SEARCH_PATHS = (
@@ -306,7 +312,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = org.weisssolutions.openchat;
 				PRODUCT_NAME = "Open Chat";
 				VALID_ARCHS = arm64;
-				DEVELOPMENT_TEAM = "976SMHMA6R";
 			};
 			name = release;
 		};
