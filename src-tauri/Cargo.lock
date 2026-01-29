@@ -2839,7 +2839,6 @@ dependencies = [
  "tauri-plugin-global-shortcut",
  "tauri-plugin-keychain",
  "tauri-plugin-keyring",
- "tauri-plugin-local-llm",
  "tauri-plugin-opener",
  "tauri-plugin-os",
  "tauri-plugin-process",
@@ -4971,19 +4970,6 @@ dependencies = [
  "tauri",
  "tauri-plugin",
  "thiserror 2.0.18",
-]
-
-[[package]]
-name = "tauri-plugin-local-llm"
-version = "0.1.0"
-dependencies = [
- "log",
- "serde",
- "serde_json",
- "swift-rs",
- "tauri",
- "tauri-plugin",
- "thiserror 1.0.69",
 ]
 
 [[package]]
