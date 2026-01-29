@@ -1,0 +1,8 @@
+{
+  "identifier": "ios-capability",
+  "platforms": ["iOS"],
+  "windows": ["main"],
+  "permissions": [
+    "local-llm:default"
+  ]
+}

@@ -205,6 +205,11 @@ pub fn run() {
         builder = builder.plugin(tauri_plugin_keychain::init());
     }
 
+    #[cfg(target_os = "ios")]
+    {
+        builder = builder.plugin(tauri_plugin_local_llm::init());
+    }
+
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
         builder.invoke_handler(tauri::generate_handler![
