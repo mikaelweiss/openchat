@@ -30,13 +30,15 @@ interface ConversationSettingsModalProps {
   settings: ConversationSettings | null
   onSave: (settings: ConversationSettings) => void
   conversationId: number | 'pending' | null
+  maxTemperature?: number
 }
 
-export default function ConversationSettingsModal({ 
-  isOpen, 
-  onClose, 
-  settings, 
-  onSave
+export default function ConversationSettingsModal({
+  isOpen,
+  onClose,
+  settings,
+  onSave,
+  maxTemperature = 2
 }: ConversationSettingsModalProps) {
   const [formSettings, setFormSettings] = useState<ConversationSettings>(settings || defaultSettings)
   const [stopSequences, setStopSequences] = useState<string>((settings?.stop || []).join('\n'))
@@ -123,9 +125,9 @@ export default function ConversationSettingsModal({
               <input
                 type="range"
                 min="0"
-                max="1"
+                max={maxTemperature}
                 step="0.1"
-                value={formSettings.temperature}
+                value={Math.min(formSettings.temperature, maxTemperature)}
                 onChange={(e) => updateSetting('temperature', parseFloat(e.target.value))}
                 className="w-full accent-primary"
               />

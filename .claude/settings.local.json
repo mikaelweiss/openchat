@@ -22,7 +22,8 @@
       "WebFetch(domain:chat-sdk.dev)",
       "mcp__context7__query-docs",
       "WebSearch",
-      "Skill(commit)"
+      "Skill(commit)",
+      "mcp__plugin_linear_linear__list_issues"
     ],
     "deny": []
   }

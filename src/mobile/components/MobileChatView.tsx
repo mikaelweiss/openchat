@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { Settings } from 'lucide-react'
 import clsx from 'clsx'
 import MessageList from '../../components/Chat/MessageList'
@@ -26,6 +26,11 @@ export default function MobileChatView({ conversationId, onSelectConversation }:
   const [selectedModel, setSelectedModel] = useState<{ provider: string; model: string } | null>(null)
   const [showConversationSettings, setShowConversationSettings] = useState(false)
   const [conversationSettings, setConversationSettings] = useState<ConversationSettings | null>(null)
+
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const [userHasScrolledUp, setUserHasScrolledUp] = useState(false)
+  const wasStreamingRef = useRef(false)
+  const prevMessagesLengthRef = useRef(0)
 
   const {
     messages,
@@ -71,6 +76,54 @@ export default function MobileChatView({ conversationId, onSelectConversation }:
 
     return models
   }, [providers])
+
+  const isStreaming = !!(streamingMessage || (streamingMessagesByModel && streamingMessagesByModel.size > 0))
+
+  const handleScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
+    const target = event.currentTarget
+    const distanceFromBottom = target.scrollHeight - target.scrollTop - target.clientHeight
+    const threshold = 100
+
+    if (distanceFromBottom > threshold) {
+      setUserHasScrolledUp(true)
+    } else {
+      setUserHasScrolledUp(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (isStreaming && !userHasScrolledUp && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight
+    }
+  }, [isStreaming, userHasScrolledUp, streamingMessage, streamingMessagesByModel])
+
+  useEffect(() => {
+    const wasStreaming = wasStreamingRef.current
+    wasStreamingRef.current = isStreaming
+
+    if (wasStreaming && !isStreaming && !userHasScrolledUp) {
+      requestAnimationFrame(() => {
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight
+        }
+      })
+    }
+
+    if (!isStreaming) {
+      setUserHasScrolledUp(false)
+    }
+  }, [isStreaming, userHasScrolledUp])
+
+  useEffect(() => {
+    if (messages.length > prevMessagesLengthRef.current) {
+      requestAnimationFrame(() => {
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight
+        }
+      })
+    }
+    prevMessagesLengthRef.current = messages.length
+  }, [messages.length])
 
   useEffect(() => {
     const loadConversation = async () => {
@@ -263,7 +316,9 @@ export default function MobileChatView({ conversationId, onSelectConversation }:
           } catch (err) {
             console.error('Failed to save assistant message:', err)
           }
-          clearStreamingMessage(activeConversationId, modelId)
+          requestAnimationFrame(() => {
+            clearStreamingMessage(activeConversationId, modelId)
+          })
         },
         onModelStreamStart: (modelId: string) => {
           console.log(`Model ${modelId} started streaming`)
@@ -343,6 +398,13 @@ export default function MobileChatView({ conversationId, onSelectConversation }:
     )
   }, [currentConversation, selectedModel, providers])
 
+  const maxTemperature = useMemo(() => {
+    const effectiveProvider = currentConversation?.provider || selectedModel?.provider
+    if (!effectiveProvider || !providers) return 2
+    const providerEndpoint = providers[effectiveProvider]?.endpoint || ''
+    return providerEndpoint.includes('anthropic.com') ? 1 : 2
+  }, [currentConversation, selectedModel, providers])
+
   const hasModel = !!(currentConversation?.model || selectedModel?.model)
 
   const handleSaveConversationSettings = (newSettings: ConversationSettings) => {
@@ -357,6 +419,8 @@ export default function MobileChatView({ conversationId, onSelectConversation }:
           streamingMessage={streamingMessage}
           streamingMessagesByModel={streamingMessagesByModel}
           isLoading={isLoading && isCurrentConversationWaiting}
+          scrollContainerRef={scrollContainerRef}
+          onScroll={handleScroll}
         />
 
         {conversationId && hasModel && (
@@ -388,6 +452,7 @@ export default function MobileChatView({ conversationId, onSelectConversation }:
         onClose={() => setShowConversationSettings(false)}
         settings={conversationSettings || defaultSettings}
         onSave={handleSaveConversationSettings}
+        maxTemperature={maxTemperature}
       />
     </div>
   )

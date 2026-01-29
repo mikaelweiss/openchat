@@ -349,13 +349,16 @@ class ChatService {
     const estimatedInputTokens = (await tokenService.countTokens(inputText, modelConfig.model)) || 0
 
     // Build request payload based on provider
+    // Note: Anthropic doesn't allow both temperature and top_p together,
+    // so we only send top_p if temperature is not specified
     const requestPayload = isAnthropic ? {
       model: modelConfig.model,
       messages,
       stream: !!onStreamChunk,
       max_tokens: modelConfig.maxTokens || 1024,
-      ...(modelConfig.temperature !== undefined && { temperature: modelConfig.temperature }),
-      ...(modelConfig.topP !== undefined && { top_p: modelConfig.topP }),
+      ...(modelConfig.temperature !== undefined
+        ? { temperature: modelConfig.temperature }
+        : modelConfig.topP !== undefined && { top_p: modelConfig.topP }),
     } : {
       model: modelConfig.model,
       messages,

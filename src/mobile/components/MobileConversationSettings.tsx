@@ -29,13 +29,15 @@ interface MobileConversationSettingsProps {
   onClose: () => void
   settings: ConversationSettings | null
   onSave: (settings: ConversationSettings) => void
+  maxTemperature?: number
 }
 
 export default function MobileConversationSettings({
   isOpen,
   onClose,
   settings,
-  onSave
+  onSave,
+  maxTemperature = 2
 }: MobileConversationSettingsProps) {
   const [formSettings, setFormSettings] = useState<ConversationSettings>(settings || defaultSettings)
   const [stopSequences, setStopSequences] = useState<string>((settings?.stop || []).join('\n'))
@@ -112,9 +114,9 @@ export default function MobileConversationSettings({
             <input
               type="range"
               min="0"
-              max="2"
+              max={maxTemperature}
               step="0.1"
-              value={formSettings.temperature}
+              value={Math.min(formSettings.temperature, maxTemperature)}
               onChange={(e) => updateSetting('temperature', parseFloat(e.target.value))}
               className="w-full accent-primary h-2"
             />

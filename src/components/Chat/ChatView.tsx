@@ -4,7 +4,7 @@ import MessageList from './MessageList'
 import MessageInput, { MessageInputHandle } from './MessageInput'
 import ModelLoadingBanner from './ModelLoadingBanner'
 import ConversationSettingsModal, { ConversationSettings } from './ConversationSettingsModal'
-import { useRef, RefObject, useState, useEffect, useMemo, forwardRef, useImperativeHandle } from 'react'
+import { useRef, RefObject, useState, useEffect, useMemo, forwardRef, useImperativeHandle, useCallback } from 'react'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useSettings } from '../../hooks/useSettings'
 import { useProviders, useMessages, useConversations } from '../../stores/appStore'
@@ -121,7 +121,13 @@ const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(function ChatView({ c
   
   // Track the last loaded local model for cleanup when switching
   const [lastLoadedLocalModel, setLastLoadedLocalModel] = useState<string | null>(null)
-  
+
+  // Auto-scroll state
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const [userHasScrolledUp, setUserHasScrolledUp] = useState(false)
+  const wasStreamingRef = useRef(false)
+  const prevMessagesLengthRef = useRef(0)
+
   // Use Zustand stores
   const { 
     messages, 
@@ -424,7 +430,56 @@ const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(function ChatView({ c
     
     focusInput()
   }, [conversationId, currentConversation?.model, selectedModel?.model, messageInputRef])
-  
+
+  // Auto-scroll handling
+  const isStreaming = !!(zustandStreamingMessage || (streamingMessagesByModel && streamingMessagesByModel.size > 0))
+
+  const handleScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
+    const target = event.currentTarget
+    const distanceFromBottom = target.scrollHeight - target.scrollTop - target.clientHeight
+    const threshold = 100
+
+    if (distanceFromBottom > threshold) {
+      setUserHasScrolledUp(true)
+    } else {
+      setUserHasScrolledUp(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (isStreaming && !userHasScrolledUp && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight
+    }
+  }, [isStreaming, userHasScrolledUp, zustandStreamingMessage, streamingMessagesByModel])
+
+  useEffect(() => {
+    const wasStreaming = wasStreamingRef.current
+    wasStreamingRef.current = isStreaming
+
+    if (wasStreaming && !isStreaming && !userHasScrolledUp) {
+      requestAnimationFrame(() => {
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight
+        }
+      })
+    }
+
+    if (!isStreaming) {
+      setUserHasScrolledUp(false)
+    }
+  }, [isStreaming, userHasScrolledUp])
+
+  useEffect(() => {
+    if (messages.length > prevMessagesLengthRef.current) {
+      requestAnimationFrame(() => {
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight
+        }
+      })
+    }
+    prevMessagesLengthRef.current = messages.length
+  }, [messages.length])
+
   // Function to check if a model is local
   const isModelLocal = (model: {provider: string, model: string}) => {
     const provider = providers?.[model.provider]
@@ -467,6 +522,13 @@ const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(function ChatView({ c
     
     const provider = providers?.[effectiveProvider]
     return provider?.isLocal === true
+  }, [currentConversation?.provider, selectedModel?.provider, providers])
+
+  const maxTemperature = useMemo(() => {
+    const effectiveProvider = currentConversation?.provider || selectedModel?.provider
+    if (!effectiveProvider || !providers) return 2
+    const providerEndpoint = providers[effectiveProvider]?.endpoint || ''
+    return providerEndpoint.includes('anthropic.com') ? 1 : 2
   }, [currentConversation?.provider, selectedModel?.provider, providers])
 
   // Get the current model name for the banner
@@ -821,7 +883,9 @@ const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(function ChatView({ c
           } catch (err) {
             console.error('Failed to save assistant message:', err)
           }
-          clearStreamingMessage(activeConversationId, modelId)
+          requestAnimationFrame(() => {
+            clearStreamingMessage(activeConversationId, modelId)
+          })
         },
         onModelStreamStart: (modelId: string) => {
           console.log(`Model ${modelId} started streaming`)
@@ -1061,12 +1125,14 @@ const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(function ChatView({ c
         
         {/* Messages - this should be the scrollable area */}
         <div className="flex-1 min-h-0">
-          <MessageList 
+          <MessageList
             messages={messages}
             streamingMessage={zustandStreamingMessage}
             streamingMessagesByModel={streamingMessagesByModel}
             isLoading={isLoading && isCurrentConversationWaiting}
             expectedModels={isMultiSelectMode && selectedModels.length > 0 ? selectedModels : []}
+            scrollContainerRef={scrollContainerRef}
+            onScroll={handleScroll}
           />
         </div>
 
@@ -1102,6 +1168,7 @@ const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(function ChatView({ c
         settings={conversationSettings}
         onSave={handleSaveConversationSettings}
         conversationId={conversationId || null}
+        maxTemperature={maxTemperature}
       />
 
       {/* Model Selector Dropdown - Rendered as Portal */}

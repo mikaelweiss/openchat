@@ -18,6 +18,8 @@ interface MessageListProps {
   streamingMessage?: string
   streamingMessagesByModel?: Map<string, string>
   expectedModels?: Array<{provider: string, model: string}>
+  scrollContainerRef?: React.RefObject<HTMLDivElement | null>
+  onScroll?: (event: React.UIEvent<HTMLDivElement>) => void
 }
 
 interface CodeBlockProps {
@@ -114,7 +116,7 @@ function AttachmentDisplay({ attachments }: { attachments: { type: string; path:
 }
 
 
-export default function MessageList({ messages = [], isLoading = false, streamingMessage = '', streamingMessagesByModel, expectedModels = [] }: MessageListProps) {
+export default function MessageList({ messages = [], isLoading = false, streamingMessage = '', streamingMessagesByModel, expectedModels = [], scrollContainerRef, onScroll }: MessageListProps) {
   const [loadingMessage, setLoadingMessage] = useState('Assembling')
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null)
   const { userName } = useSettings()
@@ -311,7 +313,11 @@ export default function MessageList({ messages = [], isLoading = false, streamin
   }
 
   return (
-    <div className="h-full overflow-y-auto p-6 space-y-8 min-w-0 elegant-scrollbar overscroll-contain">
+    <div
+      ref={scrollContainerRef}
+      onScroll={onScroll}
+      className="h-full overflow-y-auto p-6 space-y-8 min-w-0 elegant-scrollbar overscroll-contain"
+    >
       {groupedMessages.map((group, groupIndex) => {
         if (group.type === 'single') {
           const message = group.messages[0]
