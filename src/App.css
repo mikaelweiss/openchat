@@ -612,3 +612,58 @@ a,
   -webkit-text-fill-color: transparent;
   animation: shimmer-text 3.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+
+/* Mobile App Styles */
+.mobile-app {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.mobile-header {
+  padding-top: calc(env(safe-area-inset-top) + 0.75rem);
+}
+
+.mobile-drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+}
+
+.mobile-drawer-backdrop {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.mobile-drawer-content {
+  width: 80%;
+  max-width: 320px;
+  height: 100%;
+  padding-top: env(safe-area-inset-top);
+}
+
+.mobile-input-container {
+  padding-bottom: calc(env(safe-area-inset-bottom) + 0.75rem);
+}
+
+/* Mobile-specific touch improvements */
+@media (hover: none) and (pointer: coarse) {
+  .elegant-hover:active {
+    background: hsl(var(--accent) / 0.1);
+    transform: scale(0.98);
+  }
+
+  button:active {
+    transform: scale(0.98);
+  }
+
+  /* Larger touch targets on mobile */
+  .mobile-app button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Disable hover effects on touch devices */
+  .elegant-hover:hover {
+    background: transparent;
+    transform: none;
+  }
+}
