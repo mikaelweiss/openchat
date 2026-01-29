@@ -615,8 +615,8 @@ a,
 
 /* Mobile App Styles */
 .mobile-app {
-  padding-top: env(safe-area-inset-top);
-  padding-bottom: env(safe-area-inset-bottom);
+  position: fixed;
+  inset: 0;
 }
 
 .mobile-header {
@@ -641,7 +641,8 @@ a,
 }
 
 .mobile-input-container {
-  padding-bottom: calc(env(safe-area-inset-bottom) + 0.75rem);
+  padding-bottom: 0;
+  border-bottom: none;
 }
 
 /* Mobile-specific touch improvements */

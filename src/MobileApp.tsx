@@ -119,7 +119,7 @@ function MobileApp() {
   }
 
   return (
-    <div className="mobile-app h-screen flex flex-col bg-background text-foreground overflow-hidden">
+    <div className="mobile-app flex flex-col bg-background text-foreground overflow-hidden">
       <MobileHeader
         title={currentConversation?.title || 'New Conversation'}
         subtitle={modelDisplayName || undefined}

@@ -21,7 +21,8 @@
       "WebFetch(domain:github.com)",
       "WebFetch(domain:chat-sdk.dev)",
       "mcp__context7__query-docs",
-      "WebSearch"
+      "WebSearch",
+      "Skill(commit)"
     ],
     "deny": []
   }

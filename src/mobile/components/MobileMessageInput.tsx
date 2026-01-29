@@ -253,7 +253,7 @@ export default function MobileMessageInput({
   const hasAttachmentSupport = modelCapabilities?.vision || modelCapabilities?.audio || modelCapabilities?.files
 
   return (
-    <div className="mobile-input-container border-t border-border/10 p-3 glass-nav backdrop-blur-strong">
+    <div className="mobile-input-container border-t border-border/10 px-3 pt-3 glass-nav backdrop-blur-strong">
       {attachments.length > 0 && (
         <div className="mb-3 flex flex-wrap gap-2">
           {attachments.map((attachment, index) => {
