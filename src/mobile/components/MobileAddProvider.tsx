@@ -234,7 +234,7 @@ export default function MobileAddProvider({
 
   if (selectedPreset) {
     return (
-      <div className="mobile-app h-screen flex flex-col bg-background text-foreground">
+      <div className="mobile-app flex flex-col bg-background text-foreground">
         <header className="mobile-header flex-shrink-0 flex items-center gap-3 px-4 py-3 border-b border-border/10 glass-nav backdrop-blur-strong">
           <button
             onClick={() => setSelectedPreset(null)}
@@ -246,7 +246,7 @@ export default function MobileAddProvider({
           <h1 className="font-semibold text-foreground/95">Configure {selectedPreset.name}</h1>
         </header>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 min-h-0 overflow-y-auto bg-background">
           <div className="p-4 space-y-6">
             <div className="text-sm text-muted-foreground">
               {selectedPreset.description}
@@ -290,7 +290,7 @@ export default function MobileAddProvider({
 
   if (showCustom) {
     return (
-      <div className="mobile-app h-screen flex flex-col bg-background text-foreground">
+      <div className="mobile-app flex flex-col bg-background text-foreground">
         <header className="mobile-header flex-shrink-0 flex items-center gap-3 px-4 py-3 border-b border-border/10 glass-nav backdrop-blur-strong">
           <button
             onClick={() => setShowCustom(false)}
@@ -302,7 +302,7 @@ export default function MobileAddProvider({
           <h1 className="font-semibold text-foreground/95">Custom Provider</h1>
         </header>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 min-h-0 overflow-y-auto bg-background">
           <div className="p-4 space-y-6">
             <section>
               <h2 className="text-sm font-semibold text-muted-foreground mb-3 px-1">PROVIDER NAME</h2>
@@ -365,7 +365,7 @@ export default function MobileAddProvider({
   }
 
   return (
-    <div className="mobile-app h-screen flex flex-col bg-background text-foreground">
+    <div className="mobile-app flex flex-col bg-background text-foreground">
       <header className="mobile-header flex-shrink-0 flex items-center gap-3 px-4 py-3 border-b border-border/10 glass-nav backdrop-blur-strong">
         <button
           onClick={onBack}
@@ -377,7 +377,7 @@ export default function MobileAddProvider({
         <h1 className="font-semibold text-foreground/95">Add Provider</h1>
       </header>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 min-h-0 overflow-y-auto">
         <div className="p-4 space-y-6">
           {availableCloudPresets.length > 0 && (
             <section>

@@ -25,6 +25,10 @@ void configureWebViewSafeArea() {
         if (rootVC) {
             rootVC.edgesForExtendedLayout = UIRectEdgeAll;
 
+            // Get the current safe area insets and negate the bottom one
+            UIEdgeInsets safeArea = rootVC.view.safeAreaInsets;
+            rootVC.additionalSafeAreaInsets = UIEdgeInsetsMake(0, 0, -safeArea.bottom, 0);
+
             WKWebView* webView = findWebView(rootVC.view);
             if (webView) {
                 webView.scrollView.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;

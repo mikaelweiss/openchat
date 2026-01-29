@@ -89,7 +89,7 @@ export default function MobileSettings({ onBack }: MobileSettingsProps) {
   }
 
   return (
-    <div className="mobile-app h-screen flex flex-col bg-background text-foreground">
+    <div className="mobile-app flex flex-col bg-background text-foreground">
       <header className="mobile-header flex-shrink-0 flex items-center gap-3 px-4 py-3 border-b border-border/10 glass-nav backdrop-blur-strong">
         <button
           onClick={onBack}
@@ -101,7 +101,7 @@ export default function MobileSettings({ onBack }: MobileSettingsProps) {
         <h1 className="font-semibold text-foreground/95">Settings</h1>
       </header>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 min-h-0 overflow-y-auto">
         <div className="p-4 space-y-6">
           <section>
             <h2 className="text-sm font-semibold text-muted-foreground mb-3 px-1">APPEARANCE</h2>
