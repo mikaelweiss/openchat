@@ -16,10 +16,17 @@ export default function MobileHeader({
   onNewChat,
   onTitlePress
 }: MobileHeaderProps) {
+  const handleMenuPress = () => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur()
+    }
+    onMenuPress()
+  }
+
   return (
     <header className="mobile-header flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-border/10 glass-nav backdrop-blur-strong">
       <button
-        onClick={onMenuPress}
+        onClick={handleMenuPress}
         className="p-2 -ml-2 rounded-xl elegant-hover text-muted-foreground hover:text-foreground transition-colors"
         aria-label="Open menu"
       >

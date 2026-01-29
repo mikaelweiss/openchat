@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import MobileHeader from './mobile/components/MobileHeader'
 import MobileDrawer from './mobile/components/MobileDrawer'
 import MobileChatView from './mobile/components/MobileChatView'
@@ -33,6 +33,36 @@ function MobileApp() {
   const currentConversation = selectedConversationId ? getConversation(selectedConversationId) : null
 
   const showOnboarding = settings?.hasCompletedOnboarding === false
+  const appRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const initialHeight = window.innerHeight
+
+    const handleVisualViewportResize = () => {
+      if (window.visualViewport && appRef.current) {
+        const viewport = window.visualViewport
+        const keyboardOpen = viewport.height < initialHeight * 0.8
+
+        if (keyboardOpen) {
+          appRef.current.style.height = `${viewport.height}px`
+        } else {
+          appRef.current.style.height = ''
+        }
+        window.scrollTo(0, 0)
+      }
+    }
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleVisualViewportResize)
+      window.visualViewport.addEventListener('scroll', () => window.scrollTo(0, 0))
+    }
+
+    return () => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleVisualViewportResize)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     const initialize = async () => {
@@ -122,7 +152,7 @@ function MobileApp() {
   }
 
   return (
-    <div className="mobile-app flex flex-col bg-background text-foreground overflow-hidden">
+    <div ref={appRef} className="mobile-app flex flex-col bg-background text-foreground overflow-hidden">
       <MobileHeader
         title={currentConversation?.title || 'New Conversation'}
         subtitle={modelDisplayName || undefined}

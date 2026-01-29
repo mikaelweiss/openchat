@@ -311,7 +311,7 @@ export default function MessageList({ messages = [], isLoading = false, streamin
   }
 
   return (
-    <div className="h-full overflow-y-auto p-6 space-y-8 min-w-0 elegant-scrollbar">
+    <div className="h-full overflow-y-auto p-6 space-y-8 min-w-0 elegant-scrollbar overscroll-contain">
       {groupedMessages.map((group, groupIndex) => {
         if (group.type === 'single') {
           const message = group.messages[0]

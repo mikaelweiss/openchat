@@ -350,8 +350,8 @@ export default function MobileChatView({ conversationId, onSelectConversation }:
   }
 
   return (
-    <div className="flex-1 flex flex-col min-h-0">
-      <div className="flex-1 min-h-0 relative overflow-hidden">
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+      <div className="mobile-messages-container">
         <MessageList
           messages={messages}
           streamingMessage={streamingMessage}

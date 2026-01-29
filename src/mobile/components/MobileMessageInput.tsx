@@ -43,7 +43,23 @@ export default function MobileMessageInput({
   const [attachments, setAttachments] = useState<FileAttachment[]>([])
   const [reasoningEffort, setReasoningEffort] = useState<'none' | 'low' | 'medium' | 'high'>('none')
   const [showReasoningOptions, setShowReasoningOptions] = useState(false)
-  const [isFocused, setIsFocused] = useState(false)
+  const [keyboardVisible, setKeyboardVisible] = useState(false)
+
+  useEffect(() => {
+    const initialHeight = window.visualViewport?.height ?? window.innerHeight
+
+    const handleViewportResize = () => {
+      if (window.visualViewport) {
+        const isKeyboardOpen = window.visualViewport.height < initialHeight * 0.85
+        setKeyboardVisible(isKeyboardOpen)
+      }
+    }
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleViewportResize)
+      return () => window.visualViewport?.removeEventListener('resize', handleViewportResize)
+    }
+  }, [])
 
   const placeholderTexts = [
     "What's on your mind?",
@@ -256,7 +272,7 @@ export default function MobileMessageInput({
   return (
     <div className={clsx(
       "mobile-input-container border-t border-border/10 px-3 pt-3 glass-nav backdrop-blur-strong",
-      isFocused ? "pb-0" : "pb-8"
+      keyboardVisible ? "pb-0" : "pb-8"
     )}>
       {attachments.length > 0 && (
         <div className="mb-3 flex flex-wrap gap-2">
@@ -356,8 +372,6 @@ export default function MobileMessageInput({
             onChange={e => !disabled && setMessage(e.target.value)}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
             placeholder={noProvider ? 'Add a provider to start chatting...' : selectedPlaceholder}
             className={clsx(
               'w-full resize-none bg-transparent px-4 py-3 min-h-[48px] max-h-[120px] focus:outline-none text-foreground',
@@ -370,7 +384,14 @@ export default function MobileMessageInput({
         </div>
 
         <button
-          onClick={handleSubmit}
+          onTouchEnd={(e) => {
+            e.preventDefault()
+            handleSubmit()
+          }}
+          onMouseDown={(e) => {
+            e.preventDefault()
+            handleSubmit()
+          }}
           disabled={disabled || (!isLoading && !message.trim() && attachments.length === 0)}
           className={clsx(
             'flex-shrink-0 w-10 h-10 rounded-full transition-all duration-200 flex items-center justify-center',

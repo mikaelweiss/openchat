@@ -617,10 +617,16 @@ a,
 .mobile-app {
   position: fixed;
   inset: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .mobile-header {
   padding-top: calc(env(safe-area-inset-top) + 0.75rem);
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  flex-shrink: 0;
 }
 
 .mobile-drawer {
@@ -642,6 +648,24 @@ a,
 
 .mobile-input-container {
   border-bottom: none;
+  flex-shrink: 0;
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  background: hsl(var(--background));
+}
+
+/* Prevent scroll chaining on mobile - keeps input fixed when scrolling messages */
+.mobile-messages-container {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.mobile-messages-container > div {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Mobile-specific touch improvements */
