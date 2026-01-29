@@ -184,7 +184,7 @@ function MobileApp() {
         onSelect={handleModelSelect}
       />
 
-      <ToastContainer />
+      <ToastContainer mobile />
     </div>
   )
 }
