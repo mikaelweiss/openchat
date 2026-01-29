@@ -29,7 +29,9 @@
   },
   "plugins": {
     "sql": {
-      "preload": ["sqlite:open_chat.db"]
+      "preload": [
+        "sqlite:open_chat.db"
+      ]
     },
     "updater": {
       "active": true,
@@ -55,6 +57,9 @@
       "dmg": {
         "background": "./images/dmg-background.png"
       }
+    },
+    "iOS": {
+      "developmentTeam": "976SMHMA6R"
     }
   }
 }
