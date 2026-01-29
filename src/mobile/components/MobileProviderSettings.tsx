@@ -113,7 +113,7 @@ export default function MobileProviderSettings({
 
   return (
     <div className="mobile-app h-screen flex flex-col bg-background text-foreground">
-      <header className="flex-shrink-0 flex items-center gap-3 px-4 py-3 border-b border-border/10 glass-nav backdrop-blur-strong">
+      <header className="mobile-header flex-shrink-0 flex items-center gap-3 px-4 py-3 border-b border-border/10 glass-nav backdrop-blur-strong">
         <button
           onClick={onBack}
           className="p-2 -ml-2 rounded-xl elegant-hover text-muted-foreground hover:text-foreground transition-colors"

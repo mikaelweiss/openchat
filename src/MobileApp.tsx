@@ -114,7 +114,10 @@ function MobileApp() {
 
   if (showSettings) {
     return (
-      <MobileSettings onBack={() => setShowSettings(false)} />
+      <MobileSettings onBack={() => {
+        setShowSettings(false)
+        setDrawerOpen(true)
+      }} />
     )
   }
 
