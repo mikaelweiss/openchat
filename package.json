@@ -6,11 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "desktop": "tauri dev",
-    "ios": "tauri ios dev",
-    "android": "tauri android dev",
-    "ios:build": "tauri ios build",
-    "android:build": "tauri android build"
+    "dev:desktop": "tauri dev",
+    "dev:ios": "tauri ios dev",
+    "dev:android": "tauri android dev",
+    "build:ios": "tauri ios build",
+    "build:android": "tauri android build"
   },
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",
