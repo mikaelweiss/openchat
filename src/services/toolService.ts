@@ -187,13 +187,15 @@ class ToolService {
     })
     
     formatted += '\n---\n'
-    formatted += 'You are using search results to answer a user query. Follow these rules:\n'
-    formatted += '1. Include all relevant information from the results to answer accurately.\n'
-    formatted += '2. For every factual statement, you MUST add an in-text citation in the format [number](url), for example: [1](https://example.com).\n'
-    formatted += '3. Number the citations sequentially, starting from 1.\n'
-    formatted += '4. Maintain clarity and conciseness; summarize results where appropriate.\n'
-    formatted += '5. Always make it easy for a user to verify the information via the provided sources.\n'
-    formatted += '6. NEVER use simple citations like [1] without the URL - always use the format [number](url).\n'
+    formatted += 'CRITICAL CITATION INSTRUCTIONS:\n'
+    formatted += '1. You MUST cite sources using INLINE markdown links in this exact format: [number](url)\n'
+    formatted += '   Example: According to recent data[1](https://example.com/article), the fact is...\n'
+    formatted += '2. DO NOT use reference-style citations like [text][1] or footnote-style citations.\n'
+    formatted += '3. DO NOT put citation definitions at the end of your response.\n'
+    formatted += '4. Put the citation number immediately after the relevant statement.\n'
+    formatted += '5. Use the exact URLs from the search results above.\n'
+    formatted += '6. Number citations sequentially: [1](url), [2](url), [3](url), etc.\n'
+    formatted += '7. Every factual claim from the search results MUST have an inline citation.\n'
     
     return formatted
   }

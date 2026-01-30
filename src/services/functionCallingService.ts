@@ -58,6 +58,30 @@ interface ModelConfig {
 
 class FunctionCallingService {
   /**
+   * Convert reference-style citations to inline citations
+   * Extracts URLs from tool results and replaces [text][number] with [number](url)
+   */
+  private convertReferenceCitationsToInline(content: string, searchResults: Map<number, string>): string {
+    if (searchResults.size === 0) return content
+
+    // Replace reference-style citations [text][number] with text[number](url)
+    // This preserves the readable text and makes the citation number clickable
+    let processed = content.replace(/\[([^\]]+)\]\[(\d+)\]/g, (match, text, num) => {
+      const number = parseInt(num)
+      const url = searchResults.get(number)
+      if (url) {
+        return `${text}[${number}](${url})`
+      }
+      return match // Leave unchanged if no URL found
+    })
+
+    // Remove orphaned reference definitions at the end (just numbers on their own lines)
+    processed = processed.replace(/\n\n(\d+)\n(\d+)\n(\d+)[\n\d]*$/g, '')
+
+    return processed
+  }
+
+  /**
    * Execute a complete function calling loop with a model
    */
   async executeWithFunctionCalling({
@@ -76,6 +100,7 @@ class FunctionCallingService {
     let currentMessages = [...messages]
     let toolCallCount = 0
     let finalContent = ''
+    const searchResultUrls = new Map<number, string>() // Track URLs for citation post-processing
 
     while (toolCallCount < maxToolCalls) {
       const response = await this.callModel({
@@ -120,6 +145,21 @@ class FunctionCallingService {
 
         console.log('Tool results:', toolResults)
 
+        // Extract URLs from web search results for citation post-processing
+        for (const result of toolResults) {
+          if (result.name === 'web_search') {
+            try {
+              // Parse the formatted search results to extract URLs
+              const urlMatches = result.content.matchAll(/\*\*Result (\d+):\*\*[\s\S]*?\*\*URL:\*\* (https?:\/\/[^\s\n]+)/g)
+              for (const match of urlMatches) {
+                searchResultUrls.set(parseInt(match[1]), match[2])
+              }
+            } catch (error) {
+              console.error('Failed to extract search URLs:', error)
+            }
+          }
+        }
+
         // Add tool results to messages in OpenAI format
         // The conversion to provider-specific format happens in callModel()
         for (const result of toolResults) {
@@ -159,6 +199,11 @@ class FunctionCallingService {
       if (onStreamChunk && finalContent) {
         onStreamChunk(finalContent)
       }
+    }
+
+    // Post-process content to fix reference-style citations
+    if (searchResultUrls.size > 0 && finalContent) {
+      finalContent = this.convertReferenceCitationsToInline(finalContent, searchResultUrls)
     }
 
     // Return the final assistant message
