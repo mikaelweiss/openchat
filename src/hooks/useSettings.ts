@@ -17,6 +17,7 @@ export interface AppSettings {
   providers: Record<string, Provider>
   hasCompletedOnboarding: boolean
   userName: string
+  titleGenerationModel: string | null
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -27,7 +28,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   showConversationSettings: false,
   hasCompletedOnboarding: false,
   userName: '',
-  providers: {}
+  providers: {},
+  titleGenerationModel: null
 }
 
 // Singleton settings manager to ensure all hook instances share the same state
@@ -532,6 +534,10 @@ export function useSettings() {
     }
   }
 
+  const handleTitleGenerationModelChange = async (model: string | null) => {
+    await updateSetting('titleGenerationModel', model)
+  }
+
   return {
     // Settings data (for direct access)
     settings: settingsManager.settings,
@@ -545,6 +551,7 @@ export function useSettings() {
     providers: settingsManager.settings.providers,
     hasCompletedOnboarding: settingsManager.settings.hasCompletedOnboarding,
     userName: settingsManager.settings.userName,
+    titleGenerationModel: settingsManager.settings.titleGenerationModel,
     
     // State
     isLoading: settingsManager.isLoading,
@@ -566,6 +573,7 @@ export function useSettings() {
     handleCapabilityToggle,
     handleUserNameChange,
     handleOnboardingCompletion,
+    handleTitleGenerationModelChange,
     
     // Provider management
     addProvider,

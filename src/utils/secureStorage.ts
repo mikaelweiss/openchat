@@ -1,29 +1,12 @@
-import { getPassword, setPassword, deletePassword } from "tauri-plugin-keyring-api"
+import { invoke } from '@tauri-apps/api/core'
+import { platform } from '@tauri-apps/plugin-os'
 import { BaseDirectory, readTextFile, writeTextFile, exists } from '@tauri-apps/plugin-fs'
 
 const SERVICE_NAME = "open-chat"
 const KEYS_FILE = "keys.enc"
 
-// Key format helpers
-function formatKey(providerId: string): string {
-  return `provider-${providerId}`
-}
-
-function formatDevKey(providerId: string): string {
-  return formatKey(providerId)
-}
-
-function formatProdKey(providerId: string): { service: string, account: string } {
-  return {
-    service: SERVICE_NAME,
-    account: formatKey(providerId)
-  }
-}
-
-// Check if we're in development mode
 const isDev = import.meta.env.DEV || import.meta.env.MODE === 'development'
 
-// Simple XOR encryption for dev mode storage
 const ENCRYPTION_KEY = "open-chat-2024-secure-key-storage-v1-dev-only"
 
 function simpleEncrypt(text: string): string {
@@ -33,12 +16,12 @@ function simpleEncrypt(text: string): string {
       text.charCodeAt(i) ^ ENCRYPTION_KEY.charCodeAt(i % ENCRYPTION_KEY.length)
     )
   }
-  return btoa(result) // Base64 encode for storage
+  return btoa(result)
 }
 
 function simpleDecrypt(encrypted: string): string {
   try {
-    const decoded = atob(encrypted) // Base64 decode
+    const decoded = atob(encrypted)
     let result = ''
     for (let i = 0; i < decoded.length; i++) {
       result += String.fromCharCode(
@@ -52,10 +35,17 @@ function simpleDecrypt(encrypted: string): string {
   }
 }
 
-// In-memory cache for API keys (used in both dev and prod for performance)
 const keyCache = new Map<string, string>()
 let devKeysData: Record<string, string> = {}
 let devInitialized = false
+let cachedPlatform: string | null = null
+
+function getPlatformType(): 'mobile' | 'desktop' {
+  if (cachedPlatform === null) {
+    cachedPlatform = platform()
+  }
+  return (cachedPlatform === 'ios' || cachedPlatform === 'android') ? 'mobile' : 'desktop'
+}
 
 async function loadDevKeys(): Promise<void> {
   try {
@@ -64,7 +54,6 @@ async function loadDevKeys(): Promise<void> {
       const decrypted = simpleDecrypt(encrypted)
       if (decrypted) {
         devKeysData = JSON.parse(decrypted)
-        // Populate cache
         Object.entries(devKeysData).forEach(([key, value]) => {
           keyCache.set(key, value)
         })
@@ -93,25 +82,58 @@ async function ensureDevInitialized() {
   }
 }
 
-/**
- * Save an API key - uses encrypted file in dev, keychain in prod
- */
+async function keychainSave(key: string, password: string): Promise<void> {
+  await invoke('plugin:keychain|save_item', { key, password })
+}
+
+async function keychainGet(key: string): Promise<string | null> {
+  try {
+    return await invoke<string | null>('plugin:keychain|get_item', { key })
+  } catch {
+    return null
+  }
+}
+
+async function keychainDelete(key: string): Promise<void> {
+  await invoke('plugin:keychain|remove_item', { key })
+}
+
+async function keyringSet(service: string, key: string, password: string): Promise<void> {
+  const { setPassword } = await import('tauri-plugin-keyring-api')
+  await setPassword(service, key, password)
+}
+
+async function keyringGet(service: string, key: string): Promise<string | null> {
+  const { getPassword } = await import('tauri-plugin-keyring-api')
+  return await getPassword(service, key)
+}
+
+async function keyringDelete(service: string, key: string): Promise<void> {
+  const { deletePassword } = await import('tauri-plugin-keyring-api')
+  await deletePassword(service, key)
+}
+
 export async function saveApiKey(providerId: string, apiKey: string): Promise<void> {
+  const key = `provider-${providerId}`
+
   try {
     if (isDev) {
-      // Development: Use encrypted file storage
       await ensureDevInitialized()
-      const key = formatDevKey(providerId)
       devKeysData[key] = apiKey
       keyCache.set(key, apiKey)
       await saveDevKeys()
       console.log(`[DEV MODE] Saved API key for ${providerId} to encrypted file`)
     } else {
-      // Production: Use system keychain
-      const { service, account } = formatProdKey(providerId)
-      await setPassword(service, account, apiKey)
-      keyCache.set(account, apiKey) // Cache for performance
-      console.log(`Saved API key for ${providerId} to system keychain`)
+      const platformType = getPlatformType()
+
+      if (platformType === 'mobile') {
+        await keychainSave(key, apiKey)
+        console.log(`Saved API key for ${providerId} to mobile keychain`)
+      } else {
+        await keyringSet(SERVICE_NAME, key, apiKey)
+        console.log(`Saved API key for ${providerId} to system keyring`)
+      }
+      keyCache.set(key, apiKey)
     }
   } catch (error) {
     console.error(`Failed to save API key for provider ${providerId}:`, error)
@@ -119,20 +141,15 @@ export async function saveApiKey(providerId: string, apiKey: string): Promise<vo
   }
 }
 
-/**
- * Retrieve an API key - uses encrypted file in dev, keychain in prod
- */
 export async function getApiKey(providerId: string): Promise<string | null> {
-  const key = formatDevKey(providerId)
-  
-  // Check cache first (for both dev and prod)
+  const key = `provider-${providerId}`
+
   if (keyCache.has(key)) {
     return keyCache.get(key) || null
   }
-  
+
   try {
     if (isDev) {
-      // Development: Use encrypted file storage
       await ensureDevInitialized()
       const value = devKeysData[key] || null
       if (value) {
@@ -140,11 +157,17 @@ export async function getApiKey(providerId: string): Promise<string | null> {
       }
       return value
     } else {
-      // Production: Use system keychain
-      const { service, account } = formatProdKey(providerId)
-      const value = await getPassword(service, account)
+      const platformType = getPlatformType()
+      let value: string | null
+
+      if (platformType === 'mobile') {
+        value = await keychainGet(key)
+      } else {
+        value = await keyringGet(SERVICE_NAME, key)
+      }
+
       if (value) {
-        keyCache.set(account, value) // Cache for performance
+        keyCache.set(key, value)
       }
       return value
     }
@@ -154,26 +177,27 @@ export async function getApiKey(providerId: string): Promise<string | null> {
   }
 }
 
-/**
- * Delete an API key - uses encrypted file in dev, keychain in prod
- */
 export async function deleteApiKey(providerId: string): Promise<void> {
-  const key = formatDevKey(providerId)
-  
+  const key = `provider-${providerId}`
+
   try {
-    keyCache.delete(key) // Clear cache in both modes
-    
+    keyCache.delete(key)
+
     if (isDev) {
-      // Development: Use encrypted file storage
       await ensureDevInitialized()
       delete devKeysData[key]
       await saveDevKeys()
       console.log(`[DEV MODE] Deleted API key for ${providerId} from encrypted file`)
     } else {
-      // Production: Use system keychain
-      const { service, account } = formatProdKey(providerId)
-      await deletePassword(service, account)
-      console.log(`Deleted API key for ${providerId} from system keychain`)
+      const platformType = getPlatformType()
+
+      if (platformType === 'mobile') {
+        await keychainDelete(key)
+        console.log(`Deleted API key for ${providerId} from mobile keychain`)
+      } else {
+        await keyringDelete(SERVICE_NAME, key)
+        console.log(`Deleted API key for ${providerId} from system keyring`)
+      }
     }
   } catch (error) {
     console.error(`Failed to delete API key for provider ${providerId}:`, error)
@@ -181,26 +205,27 @@ export async function deleteApiKey(providerId: string): Promise<void> {
   }
 }
 
-/**
- * Check if an API key exists - uses encrypted file in dev, keychain in prod
- */
 export async function hasApiKey(providerId: string): Promise<boolean> {
-  const key = formatDevKey(providerId)
-  
-  // Check cache first
+  const key = `provider-${providerId}`
+
   if (keyCache.has(key)) {
     return true
   }
-  
+
   try {
     if (isDev) {
-      // Development: Use encrypted file storage
       await ensureDevInitialized()
       return key in devKeysData
     } else {
-      // Production: Use system keychain
-      const { service, account } = formatProdKey(providerId)
-      const apiKey = await getPassword(service, account)
+      const platformType = getPlatformType()
+      let apiKey: string | null
+
+      if (platformType === 'mobile') {
+        apiKey = await keychainGet(key)
+      } else {
+        apiKey = await keyringGet(SERVICE_NAME, key)
+      }
+
       return apiKey !== null && apiKey !== undefined && apiKey.trim() !== ''
     }
   } catch (error) {

@@ -56,7 +56,7 @@ class ConversationDatabase {
           await this.db.execute(`INSERT OR REPLACE INTO schema_version (version) VALUES (1)`)
           console.log('Migration 1: Added settings column to conversations table')
         } catch (err) {
-          const errorMessage = (err as Error).message
+          const errorMessage = err instanceof Error ? err.message : String(err)
           if (errorMessage.includes('duplicate column name')) {
             // Column already exists, just update version
             await this.db.execute(`INSERT OR REPLACE INTO schema_version (version) VALUES (1)`)
@@ -198,10 +198,9 @@ class ConversationDatabase {
 
   async toggleConversationFavorite(id: number) {
     const db = await this.init()
-    const now = new Date().toISOString()
     const result = await db.execute(
-      'UPDATE conversations SET is_favorite = NOT is_favorite, updated_at = $1 WHERE id = $2',
-      [now, id]
+      'UPDATE conversations SET is_favorite = NOT is_favorite WHERE id = $1',
+      [id]
     )
     this.notifyListeners()
     return result

@@ -28,6 +28,7 @@ interface AppState {
   // Messages
   messagesByConversation: Map<number | 'pending', Message[]>
   streamingMessages: Map<number | 'pending', Map<string, string>> // conversationId -> modelId -> content
+  streamingAbortControllers: Map<number | 'pending', AbortController> // conversationId -> AbortController
   loadingConversations: Set<number>
   
   // Providers
@@ -53,6 +54,8 @@ interface AppState {
   setStreamingMessage: (conversationId: number | 'pending', content: string, modelId?: string) => void
   clearStreamingMessage: (conversationId: number | 'pending', modelId?: string) => void
   getStreamingMessagesByModel: (conversationId: number | 'pending') => Map<string, string>
+  setStreamingAbortController: (conversationId: number | 'pending', controller: AbortController | null) => void
+  getStreamingAbortController: (conversationId: number | 'pending') => AbortController | undefined
   
   // Actions - Providers
   loadProviders: () => Promise<void>
@@ -85,6 +88,7 @@ export const useAppStore = create<AppState>()(
     selectedConversationId: null,
     messagesByConversation: new Map(),
     streamingMessages: new Map(),
+    streamingAbortControllers: new Map(),
     loadingConversations: new Set(),
     providers: {},
     isProvidersLoaded: false,
@@ -260,10 +264,18 @@ export const useAppStore = create<AppState>()(
           newMessagesByConversation.delete(id)
           const newStreamingMessages = new Map(get().streamingMessages)
           newStreamingMessages.delete(id)
+          const newStreamingAbortControllers = new Map(get().streamingAbortControllers)
+          // Abort any ongoing streaming before removing
+          const controller = newStreamingAbortControllers.get(id)
+          if (controller) {
+            controller.abort()
+          }
+          newStreamingAbortControllers.delete(id)
           
           set({ 
             messagesByConversation: newMessagesByConversation,
-            streamingMessages: newStreamingMessages
+            streamingMessages: newStreamingMessages,
+            streamingAbortControllers: newStreamingAbortControllers
           })
           
           get().resetRetryAttempt(id)
@@ -410,6 +422,23 @@ export const useAppStore = create<AppState>()(
       return state.streamingMessages.get(conversationId) || new Map<string, string>()
     },
 
+    setStreamingAbortController: (conversationId: number | 'pending', controller: AbortController | null) => {
+      set((state) => {
+        const newControllers = new Map(state.streamingAbortControllers)
+        if (controller) {
+          newControllers.set(conversationId, controller)
+        } else {
+          newControllers.delete(conversationId)
+        }
+        return { streamingAbortControllers: newControllers }
+      })
+    },
+
+    getStreamingAbortController: (conversationId: number | 'pending') => {
+      const state = get()
+      return state.streamingAbortControllers.get(conversationId)
+    },
+
     // Provider actions
     loadProviders: async () => {
       try {
@@ -510,6 +539,14 @@ export const useAppStore = create<AppState>()(
         const newStreamingMessages = new Map(state.streamingMessages)
         newStreamingMessages.delete('pending')
         
+        const newStreamingAbortControllers = new Map(state.streamingAbortControllers)
+        // Abort any ongoing streaming before removing
+        const controller = newStreamingAbortControllers.get('pending')
+        if (controller) {
+          controller.abort()
+        }
+        newStreamingAbortControllers.delete('pending')
+        
         const newErrorStates = new Map(state.errorStates)
         newErrorStates.delete('pending')
         
@@ -520,6 +557,7 @@ export const useAppStore = create<AppState>()(
           pendingConversation: null,
           messagesByConversation: newMessagesByConversation,
           streamingMessages: newStreamingMessages,
+          streamingAbortControllers: newStreamingAbortControllers,
           errorStates: newErrorStates,
           retryAttempts: newRetryAttempts
         }
@@ -536,6 +574,12 @@ export const initializeAppStore = async () => {
       store.loadConversations(),
       store.loadProviders()
     ])
+    
+    // Subscribe to conversation store changes to keep app store in sync
+    conversationStore.subscribe(() => {
+      const currentStore = useAppStore.getState()
+      currentStore.loadConversations()
+    })
   } catch (error) {
     console.error('Failed to initialize app store:', error)
   }
@@ -590,6 +634,8 @@ export const useMessages = (conversationId: number | 'pending' | null) => {
   const setStreamingMessage = useAppStore((state) => state.setStreamingMessage)
   const clearStreamingMessage = useAppStore((state) => state.clearStreamingMessage)
   const getStreamingMessagesByModel = useAppStore((state) => state.getStreamingMessagesByModel)
+  const setStreamingAbortController = useAppStore((state) => state.setStreamingAbortController)
+  const getStreamingAbortController = useAppStore((state) => state.getStreamingAbortController)
 
   // Memoize derived values
   const messages = useMemo(() => {
@@ -626,7 +672,9 @@ export const useMessages = (conversationId: number | 'pending' | null) => {
     loadMessages,
     addMessage,
     setStreamingMessage,
-    clearStreamingMessage
+    clearStreamingMessage,
+    setStreamingAbortController,
+    getStreamingAbortController
   }
 }
 

@@ -32,9 +32,9 @@ Why the name Open Chat? It's straightforward and represents our commitment to tr
    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
    ```
 
-2. **Install pnpm** (if not already installed)
+2. **Install Bun** (if not already installed)
    ```bash
-   npm install -g pnpm
+   curl -fsSL https://bun.sh/install | bash
    ```
 
 ### Installation
@@ -47,12 +47,12 @@ Why the name Open Chat? It's straightforward and represents our commitment to tr
 
 2. **Install dependencies**
    ```bash
-   pnpm install
+   bun install
    ```
 
 3. **Run the application**
    ```bash
-   pnpm tauri dev
+   bun tauri dev
    ```
 
 ## Development
@@ -61,12 +61,12 @@ Why the name Open Chat? It's straightforward and represents our commitment to tr
 
 | Command | Description |
 |---------|-------------|
-| `pnpm tauri dev` | Start development server with hot reload |
-| `pnpm tauri build` | Build production application |
-| `pnpm dev` | Start frontend development server only |
-| `pnpm build` | Build frontend assets only |
-| `pnpm tauri ios dev` | iOS simulator development |
-| `pnpm tauri android dev` | Android emulator development |
+| `bun tauri dev` | Start development server with hot reload |
+| `bun tauri build` | Build production application |
+| `bun dev` | Start frontend development server only |
+| `bun run build` | Build frontend assets only |
+| `bun tauri ios dev` | iOS simulator development |
+| `bun tauri android dev` | Android emulator development |
 
 ### Project Structure
 
@@ -130,8 +130,22 @@ src-tauri/              # Rust backend
    ```
 3. **Run on simulator**
    ```bash
-   pnpm tauri ios dev
+   bun tauri ios dev
    ```
+
+#### iOS Troubleshooting
+
+If the iOS build fails after disconnecting a device or interrupting a build (e.g., "No such file or directory" errors during Xcode library linking), clean the build cache:
+
+```bash
+cd src-tauri && cargo clean
+```
+
+If that doesn't work, also clear Xcode's derived data:
+
+```bash
+rm -rf ~/Library/Developer/Xcode/DerivedData/open-chat-*
+```
 
 ### Android Setup
 
@@ -142,7 +156,7 @@ src-tauri/              # Rust backend
    ```
 3. **Run on emulator**
    ```bash
-   pnpm tauri android dev
+   bun tauri android dev
    ```
 
 ## Database Schema

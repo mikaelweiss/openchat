@@ -3,12 +3,12 @@
     "allow": [
       "Bash(mkdir:*)",
       "WebFetch(domain:v2.tauri.app)",
-      "Bash(pnpm tauri:*)",
+      "Bash(bun tauri:*)",
       "WebFetch(domain:docs.anthropic.com)",
-      "Bash(pnpm build:*)",
+      "Bash(bun run build:*)",
       "mcp__context7__resolve-library-id",
       "mcp__context7__get-library-docs",
-      "Bash(pnpm add:*)",
+      "Bash(bun add:*)",
       "Bash(gh pr diff:*)",
       "Bash(gh pr view:*)",
       "Bash(cat:*)",
@@ -19,7 +19,11 @@
       "Bash(find:*)",
       "Bash(gh api:*)",
       "WebFetch(domain:github.com)",
-      "WebFetch(domain:chat-sdk.dev)"
+      "WebFetch(domain:chat-sdk.dev)",
+      "mcp__context7__query-docs",
+      "WebSearch",
+      "Skill(commit)",
+      "mcp__plugin_linear_linear__list_issues"
     ],
     "deny": []
   }

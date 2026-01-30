@@ -9,18 +9,19 @@ Open Chat is a modern desktop AI chat application built with Tauri v2, React, Ty
 ## Development Commands
 
 ### Core Commands
-- `pnpm tauri dev` - Start development server with hot reload
-- `pnpm tauri build` - Build production application
-- `pnpm dev` - Start frontend development server only (without Tauri)
-- `pnpm build` - Build frontend assets only
+- `bun tauri dev` - Start development server with hot reload
+- `bun tauri build` - Build production application
+- `bun dev` - Start frontend development server only (without Tauri)
+- `bun run build` - Build frontend assets only
 
 ### Mobile Development
-- `pnpm tauri ios dev` - iOS simulator development
-- `pnpm tauri android dev` - Android emulator development
+- `bun tauri ios dev` - iOS simulator development
+- `bun tauri android dev` - Android emulator development
 
 ### Prerequisites
 - Install Rust: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
-- Install dependencies: `pnpm install`
+- Install Bun: `curl -fsSL https://bun.sh/install | bash`
+- Install dependencies: `bun install`
 
 ## Architecture
 
@@ -86,30 +87,20 @@ The SQLite database auto-creates tables for:
 - Most of the time I have the app running already, so if you try running it, it'll fail. There's already hot-reload, so you can just tell me to look at the app and see if things are fixed instead of running it yourself.
 
 ## Build Checks
-- When you're done doing anything, run `pnpm build` to make sure there aren't any errors
+- When you're done doing anything, run `bun run build` to make sure there aren't any errors
 
-## Changelog Maintenance
-
-### When to Add Changelog Entries
-**Only add changelog entries for user-visible changes that are complete and ready for release:**
-- New features that are fully functional
-- Bug fixes that resolve user-reported issues
-- Changes that affect user experience or behavior
-- Breaking changes or deprecated functionality
-
-### When NOT to Add Changelog Entries
-**Do not add changelog entries for:**
-- Work-in-progress features that aren't ready for users
-- Internal refactoring or code cleanup
-- Intermediate fixes while developing a feature
-- Development tooling or build process changes
-- Documentation updates (unless user-facing)
-
-### Format Guidelines
-- Use the format: `- Description of change` under the appropriate category (Added/Changed/Fixed)
-- Focus on what the user gains/experiences, not technical implementation details
-- Group related changes under a single entry when appropriate
-- Update the TBD date when preparing for release
+<changelog>
+    Before adding a changelog entry, check to see if one already exists for that feature in the unreleased section
+    Add changelog entries for user-facing features
+    Add changelog entries for bug fixes that affect the user
+    Don't add changelog entries for internal non-user facing updates
+    Don't add changelog entries when you're making updates to a feature that's already mentioned in the unreleased section
+    <format>
+        Write from user's perspective: "Fixed issue where..." not "Fixed bug in..."
+        One line per change under the appropriate category (Added/Changed/Fixed)
+        Be specific but concise
+    </format>
+</changelog>
 
 ## Documentation Libraries
 Get documentation using context7 with these library IDs as needed:

@@ -1,12 +1,12 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Open Chat",
-  "version": "0.1.9",
+  "version": "0.2.2",
   "identifier": "org.weisssolutions.openchat",
   "build": {
-    "beforeDevCommand": "pnpm dev",
+    "beforeDevCommand": "bun dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "pnpm build",
+    "beforeBuildCommand": "bun run build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -18,9 +18,7 @@
         "minWidth": 800,
         "minHeight": 600,
         "fullscreen": false,
-        "resizable": true,
-        "hiddenTitle": true,
-        "titleBarStyle": "Overlay"
+        "resizable": true
       }
     ],
     "security": {
@@ -29,7 +27,9 @@
   },
   "plugins": {
     "sql": {
-      "preload": ["sqlite:open_chat.db"]
+      "preload": [
+        "sqlite:open_chat.db"
+      ]
     },
     "updater": {
       "active": true,
@@ -55,6 +55,9 @@
       "dmg": {
         "background": "./images/dmg-background.png"
       }
+    },
+    "iOS": {
+      "developmentTeam": "976SMHMA6R"
     }
   }
 }

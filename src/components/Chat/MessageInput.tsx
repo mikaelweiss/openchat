@@ -42,7 +42,7 @@ const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(
     const textareaRef = useRef<HTMLTextAreaElement>(null)
     const [message, setMessage] = useState('')
     const [attachments, setAttachments] = useState<FileAttachment[]>([])
-    const [reasoningEffort, setReasoningEffort] = useState<'none' | 'low' | 'medium' | 'high'>('medium')
+    const [reasoningEffort, setReasoningEffort] = useState<'none' | 'low' | 'medium' | 'high'>('none')
     const [isReasoningDropdownOpen, setIsReasoningDropdownOpen] = useState(false)
     const [searchEnabled, setSearchEnabled] = useState(false)
     
@@ -159,14 +159,16 @@ const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(
 
     // Tauri drag and drop event listener
     useEffect(() => {
-      let unlisten: (() => void) | null = null
+      let unlisten: (() => void) | undefined
+      let isCleanedUp = false
       
       const setupListener = async () => {        
         try {
           const webview = getCurrentWebview()
           
           const unlistenFn = await webview.onDragDropEvent(async (event) => {
-            if (disabledRef.current || isLoadingRef.current) return
+            // Check if component has been cleaned up or is disabled
+            if (isCleanedUp || disabledRef.current || isLoadingRef.current) return
             
             // Handle different drag and drop event types
             if (event.payload.type === 'over') {
@@ -279,8 +281,8 @@ const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(
                 }
               }
               
-              // Add all new attachments
-              if (newAttachments.length > 0) {
+              // Add all new attachments - only if not cleaned up
+              if (newAttachments.length > 0 && !isCleanedUp) {
                 setAttachments(prev => [...prev, ...newAttachments])
               }
             } else {
@@ -289,7 +291,13 @@ const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(
             }
           })
           
-          unlisten = unlistenFn
+          // Only store unlisten if not cleaned up
+          if (!isCleanedUp) {
+            unlisten = unlistenFn
+          } else {
+            // If already cleaned up, immediately unlisten
+            unlistenFn()
+          }
         } catch (error) {
           console.error('Failed to setup Tauri drag drop listener:', error)
         }
@@ -298,11 +306,13 @@ const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(
       setupListener()
       
       return () => {
+        isCleanedUp = true
         if (unlisten) {
           unlisten()
+          unlisten = undefined
         }
       }
-    }, [disabled, isLoading, modelCapabilities])
+    }, []) // Remove dependencies to prevent recreating listener
 
     const handlePaste = async (e: React.ClipboardEvent) => {
       if (disabled || isLoading) return
@@ -364,7 +374,12 @@ const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(
         onCancel?.()
       } else {
         console.log('Sending message:', message, attachments, 'reasoning effort:', reasoningEffort, 'search enabled:', searchEnabled)
-        onSend(message, attachments.length > 0 ? attachments : undefined, reasoningEffort, searchEnabled)
+        onSend(
+          message,
+          attachments.length > 0 ? attachments : undefined,
+          reasoningEffort !== 'none' ? reasoningEffort : undefined,
+          searchEnabled
+        )
         setMessage('')
         setAttachments([])
       }
@@ -755,25 +770,8 @@ const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(
             />
           </div>
           
-          {/* Right side buttons and stats */}
+          {/* Right side buttons */}
           <div className="flex items-center gap-2 flex-shrink-0">
-            {/* Token and cost stats - show inline if there's space */}
-            {(totalTokens > 0 || (totalCost > 0 && appSettings?.showPricing)) && (
-              <div className="hidden lg:flex items-center gap-3 text-xs text-muted-foreground/80">
-                {totalTokens > 0 && (
-                  <div className="flex items-center gap-1.5 text-primary/80">
-                    <Zap className="h-3 w-3" />
-                    <span className="font-medium">{totalTokens.toLocaleString()}</span>
-                  </div>
-                )}
-                {totalCost > 0 && appSettings?.showPricing && (
-                  <div className="flex items-center gap-1.5 text-primary/80">
-                    <DollarSign className="h-3 w-3" />
-                    <span className="font-medium">${totalCost.toFixed(4)}</span>
-                  </div>
-                )}
-              </div>
-            )}
             
             {/* Send button */}
             <button
@@ -802,32 +800,33 @@ const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(
           </div>
         </div>
         
-        {/* Footer info - keyboard shortcut and mobile stats */}
-        <div className="mt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-xs text-muted-foreground/80">
+        {/* Footer info - keyboard shortcut and conversation stats */}
+        <div className="mt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs text-muted-foreground/80">
           <span className="truncate font-medium">
             {appSettings?.sendMessage === 'cmd-enter' 
               ? `Press ${getModifierKeyLabel()}+Enter to send, Enter for new line`
               : 'Press Enter to send, Shift+Enter for new line'
             }
           </span>
-          {/* Show stats on mobile/smaller screens */}
+          {/* Show conversation stats */}
           {(totalTokens > 0 || (totalCost > 0 && appSettings?.showPricing)) && (
-            <div className="flex lg:hidden items-center gap-4 flex-shrink-0">
+            <div className="flex items-center gap-3 flex-shrink-0">
               {totalTokens > 0 && (
-                <div className="flex items-center gap-1.5 text-primary/80">
-                  <Zap className="h-3 w-3" />
-                  <span className="font-medium">{totalTokens.toLocaleString()}</span>
+                <div className="flex items-center gap-1.5">
+                  <Zap className="h-3 w-3 text-blue-500" />
+                  <span className="font-medium text-foreground/90">{totalTokens.toLocaleString()}</span>
+                  <span className="text-muted-foreground/70">tokens</span>
                   {totalInputTokens > 0 && totalOutputTokens > 0 && (
-                    <span className="text-muted-foreground/60 text-[10px]">
-                      ({totalInputTokens.toLocaleString()} in, {totalOutputTokens.toLocaleString()} out)
+                    <span className="hidden sm:inline text-muted-foreground/60 text-[10px]">
+                      ({totalInputTokens.toLocaleString()} in / {totalOutputTokens.toLocaleString()} out)
                     </span>
                   )}
                 </div>
               )}
               {totalCost > 0 && appSettings?.showPricing && (
-                <div className="flex items-center gap-1.5 text-primary/80">
-                  <DollarSign className="h-3 w-3" />
-                  <span className="font-medium">${totalCost.toFixed(4)}</span>
+                <div className="flex items-center gap-1.5">
+                  <DollarSign className="h-3 w-3 text-green-500" />
+                  <span className="font-medium text-foreground/90">${totalCost.toFixed(4)}</span>
                 </div>
               )}
             </div>

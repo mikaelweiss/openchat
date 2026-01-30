@@ -4,7 +4,7 @@ import MessageList from './MessageList'
 import MessageInput, { MessageInputHandle } from './MessageInput'
 import ModelLoadingBanner from './ModelLoadingBanner'
 import ConversationSettingsModal, { ConversationSettings } from './ConversationSettingsModal'
-import { useRef, RefObject, useState, useEffect, useMemo } from 'react'
+import { useRef, RefObject, useState, useEffect, useMemo, forwardRef, useImperativeHandle, useCallback } from 'react'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useSettings } from '../../hooks/useSettings'
 import { useProviders, useMessages, useConversations } from '../../stores/appStore'
@@ -24,9 +24,11 @@ import { getConversationModelDisplay } from '../../utils/conversationUtils'
 interface ChatViewProps {
   conversationId?: number | 'pending' | null
   onOpenSettings?: () => void
-  messageInputRef?: RefObject<MessageInputHandle>
+  messageInputRef?: RefObject<MessageInputHandle | null>
   onSelectConversation?: (conversationId: number | 'pending' | null) => void
   isMiniWindow?: boolean
+  modelSelectorOpen?: boolean
+  onToggleModelSelector?: () => void
 }
 
 interface ModelCapabilityIconsProps {
@@ -94,14 +96,16 @@ function getModelButtonTooltip(incompatibilityReason?: string | null, isAtMaxSel
   return undefined;
 }
 
-export default function ChatView({ conversationId, messageInputRef: externalMessageInputRef, onSelectConversation, isMiniWindow = false }: ChatViewProps) {
+export interface ChatViewHandle {
+  handleNextModel: () => void
+  handlePreviousModel: () => void
+}
+
+const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(function ChatView({ conversationId, messageInputRef: externalMessageInputRef, onSelectConversation, isMiniWindow = false, modelSelectorOpen = false, onToggleModelSelector }: ChatViewProps, ref) {
   const internalMessageInputRef = useRef<MessageInputHandle>(null)
   const messageInputRef = externalMessageInputRef || internalMessageInputRef
-  const [isLoading, setIsLoading] = useState(false)
-  const [abortController, setAbortController] = useState<AbortController | null>(null)
   
-  // Model selector state
-  const [showModelSelector, setShowModelSelector] = useState(false)
+  // Model selector state (now managed by parent App component)
   const [searchQuery, setSearchQuery] = useState('')
   const [highlightedModelIndex, setHighlightedModelIndex] = useState(0)
   const [selectedModel, setSelectedModel] = useState<{provider: string, model: string} | null>(null)
@@ -114,13 +118,19 @@ export default function ChatView({ conversationId, messageInputRef: externalMess
   const dropdownRef = useRef<HTMLDivElement>(null)
   const modelSelectorButtonRef = useRef<HTMLButtonElement>(null)
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 })
-  
+  const [isLoading, setIsLoading] = useState(false)
   // Model loading banner state
   const [showModelBanner, setShowModelBanner] = useState(false)
   
   // Track the last loaded local model for cleanup when switching
   const [lastLoadedLocalModel, setLastLoadedLocalModel] = useState<string | null>(null)
-  
+
+  // Auto-scroll state
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const [userHasScrolledUp, setUserHasScrolledUp] = useState(false)
+  const wasStreamingRef = useRef(false)
+  const prevMessagesLengthRef = useRef(0)
+
   // Use Zustand stores
   const { 
     messages, 
@@ -129,9 +139,13 @@ export default function ChatView({ conversationId, messageInputRef: externalMess
     addMessage: addMessageToStore,
     loadMessages,
     setStreamingMessage,
-    clearStreamingMessage
+    clearStreamingMessage,
+    setStreamingAbortController,
+    getStreamingAbortController
   } = useMessages(conversationId ?? null)
+  
   const { 
+    conversations,
     getConversation,
     updateConversation, 
     createPendingConversation,
@@ -139,6 +153,8 @@ export default function ChatView({ conversationId, messageInputRef: externalMess
   } = useConversations()
   const { getProviderApiKey } = useSettings()
   const { providers } = useProviders()
+  const isCurrentConversationWaiting = conversationId ?
+    !!getStreamingAbortController(conversationId) : false
   
   const [currentConversation, setCurrentConversation] = useState<Conversation | PendingConversation | null>(null)
   
@@ -244,6 +260,35 @@ export default function ChatView({ conversationId, messageInputRef: externalMess
     return models
   }, [filteredModelsByProvider])
 
+  // Function to navigate to next/previous model
+  const navigateToModel = (direction: 'next' | 'previous') => {
+    const compatibleModels = availableModels.filter(m => isModelCompatible(m))
+    if (compatibleModels.length === 0) return
+    
+    const currentModelIndex = compatibleModels.findIndex(m => 
+      m.provider === selectedModel?.provider && m.model === selectedModel?.model
+    )
+    
+    let nextIndex: number
+    if (direction === 'next') {
+      nextIndex = currentModelIndex === -1 ? 0 : (currentModelIndex + 1) % compatibleModels.length
+    } else {
+      nextIndex = currentModelIndex === -1 ? compatibleModels.length - 1 : 
+                 currentModelIndex === 0 ? compatibleModels.length - 1 : currentModelIndex - 1
+    }
+    
+    const nextModel = compatibleModels[nextIndex]
+    if (nextModel) {
+      handleModelSelect({ provider: nextModel.provider, model: nextModel.model }, false)
+    }
+  }
+
+  // Expose navigation functions to parent via ref
+  useImperativeHandle(ref, () => ({
+    handleNextModel: () => navigateToModel('next'),
+    handlePreviousModel: () => navigateToModel('previous')
+  }), [availableModels, selectedModel, requiredCapabilities])
+
   // Load current conversation details
   useEffect(() => {
     const loadConversation = async () => {
@@ -283,17 +328,17 @@ export default function ChatView({ conversationId, messageInputRef: externalMess
       }
     }
     loadConversation()
-  }, [conversationId, getConversation, loadMessages])
+  }, [conversationId, getConversation, loadMessages, conversations])
   
   // Reset highlighted index when search query changes or model selector opens/closes
   useEffect(() => {
     const compatibleModels = allFilteredModels.filter(m => isModelCompatible(m))
     setHighlightedModelIndex(compatibleModels.length > 0 ? 0 : -1) // Start with first model if available
-  }, [searchQuery, showModelSelector, allFilteredModels])
+  }, [searchQuery, modelSelectorOpen, allFilteredModels])
   
   // Clear search when model selector closes and auto-focus when it opens
   useEffect(() => {
-    if (!showModelSelector) {
+    if (!modelSelectorOpen) {
       setSearchQuery('')
     } else {
       // Auto-focus the search input when model selector opens
@@ -301,71 +346,48 @@ export default function ChatView({ conversationId, messageInputRef: externalMess
         searchInputRef.current?.focus()
       }, 100)
     }
-  }, [showModelSelector])
+  }, [modelSelectorOpen])
   
-  // Keyboard shortcuts for model selector
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Toggle model selector (Cmd+. or Ctrl+.)
-      if (e.key === '.' && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault()
-        setShowModelSelector(prev => !prev)
-      }
-      
-      // Open model selector and focus search when Shift+Cmd+M is pressed
-      if (e.key === 'm' && (e.metaKey || e.ctrlKey) && e.shiftKey) {
-        e.preventDefault()
-        if (!showModelSelector) {
-          setShowModelSelector(true)
-          // Focus will be handled by the auto-focus effect when selector opens
-        } else {
-          searchInputRef.current?.focus()
-          searchInputRef.current?.select()
-        }
-      }
-    }
-
-    document.addEventListener('keydown', handleKeyDown)
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [showModelSelector])
+  // Model selector keyboard shortcuts are now handled by the global keyboard shortcut hook in App.tsx
 
   // Click outside to close model selector
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (showModelSelector && dropdownRef.current && modelSelectorButtonRef.current && 
+      if (modelSelectorOpen && dropdownRef.current && modelSelectorButtonRef.current && 
           !dropdownRef.current.contains(event.target as Node) && 
           !modelSelectorButtonRef.current.contains(event.target as Node)) {
-        setShowModelSelector(false)
+        onToggleModelSelector?.()
       }
     }
 
-    if (showModelSelector) {
+    if (modelSelectorOpen) {
       document.addEventListener('mousedown', handleClickOutside)
     }
     
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [showModelSelector])
+  }, [modelSelectorOpen])
   
   // Auto-select model logic: always ensure a model is selected
   useEffect(() => {
     // If we have available models
     if (availableModels.length > 0) {
+      // Get conversation directly from store to avoid race condition with state
+      const conversation = conversationId ? getConversation(conversationId) : null
+
       // Check if current selected model is still available
       if (selectedModel) {
         const isModelStillAvailable = availableModels.some(
           model => model.provider === selectedModel.provider && model.model === selectedModel.model
         )
-        
+
         if (!isModelStillAvailable) {
           console.log('Selected model is no longer available, auto-selecting first available')
           // Auto-select the first available model
           const firstModel = availableModels[0]
           setSelectedModel({ provider: firstModel.provider, model: firstModel.model })
-          
+
           // Update conversation if applicable
           if (conversationId) {
             updateConversation(conversationId, {
@@ -374,12 +396,12 @@ export default function ChatView({ conversationId, messageInputRef: externalMess
             }).catch(err => console.error('Failed to update conversation model:', err))
           }
         }
-      } else if (!currentConversation?.model) {
+      } else if (!conversation?.model) {
         // No model selected and no conversation model, auto-select first available
         console.log('No model selected, auto-selecting first available')
         const firstModel = availableModels[0]
         setSelectedModel({ provider: firstModel.provider, model: firstModel.model })
-        
+
         // Update conversation if applicable
         if (conversationId) {
           updateConversation(conversationId, {
@@ -392,7 +414,7 @@ export default function ChatView({ conversationId, messageInputRef: externalMess
       // No models available
       setSelectedModel(null)
     }
-  }, [availableModels, selectedModel, conversationId, updateConversation, currentConversation?.model])
+  }, [availableModels, selectedModel, conversationId, updateConversation, getConversation])
   
   // Auto-focus input when app opens and model is ready
   useEffect(() => {
@@ -411,7 +433,56 @@ export default function ChatView({ conversationId, messageInputRef: externalMess
     
     focusInput()
   }, [conversationId, currentConversation?.model, selectedModel?.model, messageInputRef])
-  
+
+  // Auto-scroll handling
+  const isStreaming = !!(zustandStreamingMessage || (streamingMessagesByModel && streamingMessagesByModel.size > 0))
+
+  const handleScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
+    const target = event.currentTarget
+    const distanceFromBottom = target.scrollHeight - target.scrollTop - target.clientHeight
+    const threshold = 100
+
+    if (distanceFromBottom > threshold) {
+      setUserHasScrolledUp(true)
+    } else {
+      setUserHasScrolledUp(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (isStreaming && !userHasScrolledUp && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight
+    }
+  }, [isStreaming, userHasScrolledUp, zustandStreamingMessage, streamingMessagesByModel])
+
+  useEffect(() => {
+    const wasStreaming = wasStreamingRef.current
+    wasStreamingRef.current = isStreaming
+
+    if (wasStreaming && !isStreaming && !userHasScrolledUp) {
+      requestAnimationFrame(() => {
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight
+        }
+      })
+    }
+
+    if (!isStreaming) {
+      setUserHasScrolledUp(false)
+    }
+  }, [isStreaming, userHasScrolledUp])
+
+  useEffect(() => {
+    if (messages.length > prevMessagesLengthRef.current) {
+      requestAnimationFrame(() => {
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight
+        }
+      })
+    }
+    prevMessagesLengthRef.current = messages.length
+  }, [messages.length])
+
   // Function to check if a model is local
   const isModelLocal = (model: {provider: string, model: string}) => {
     const provider = providers?.[model.provider]
@@ -454,6 +525,13 @@ export default function ChatView({ conversationId, messageInputRef: externalMess
     
     const provider = providers?.[effectiveProvider]
     return provider?.isLocal === true
+  }, [currentConversation?.provider, selectedModel?.provider, providers])
+
+  const maxTemperature = useMemo(() => {
+    const effectiveProvider = currentConversation?.provider || selectedModel?.provider
+    if (!effectiveProvider || !providers) return 2
+    const providerEndpoint = providers[effectiveProvider]?.endpoint || ''
+    return providerEndpoint.includes('anthropic.com') ? 1 : 2
   }, [currentConversation?.provider, selectedModel?.provider, providers])
 
   // Get the current model name for the banner
@@ -533,9 +611,11 @@ export default function ChatView({ conversationId, messageInputRef: externalMess
   }
   
   // Handle model selection
-  const handleModelSelect = async (model: {provider: string, model: string}) => {
+  const handleModelSelect = async (model: {provider: string, model: string}, shouldCloseModal = true) => {
     setSelectedModel(model)
-    setShowModelSelector(false)
+    if (shouldCloseModal) {
+      onToggleModelSelector?.()
+    }
     
     // Update conversation with new model
     if (conversationId) {
@@ -556,10 +636,12 @@ export default function ChatView({ conversationId, messageInputRef: externalMess
       }
     }
     
-    // Focus the input field after model selection
-    setTimeout(() => {
-      messageInputRef.current?.focus()
-    }, 100)
+    // Focus the input field after model selection (only if modal was closed)
+    if (shouldCloseModal) {
+      setTimeout(() => {
+        messageInputRef.current?.focus()
+      }, 100)
+    }
   }
   
   // Handle conversation copy
@@ -686,7 +768,7 @@ export default function ChatView({ conversationId, messageInputRef: externalMess
       
       // Create abort controller for cancellation
       const controller = new AbortController()
-      setAbortController(controller)
+      setStreamingAbortController(activeConversationId, controller)
       
       // Build user message with attachments
       const userMessage: CreateMessageInput = {
@@ -789,12 +871,12 @@ export default function ChatView({ conversationId, messageInputRef: externalMess
         modelConfigs.forEach(config => {
           config.tools = availableTools
         })
-        
+
         // Enhance system prompt to explicitly instruct the AI to use search when available
         if (shouldEnableSearch) {
           const searchInstruction = "You have access to a web search tool. You MUST use the web_search function to find current information before responding. This is especially important for questions about recent events, current information, or facts that may have changed.\n\nWhen using search results in your response:\n1. ALWAYS cite your sources using the format [number](url)\n2. Include all relevant information from the search results\n3. Make it easy for the user to verify information via the provided sources"
-          
-          effectiveSystemPrompt = effectiveSystemPrompt 
+
+          effectiveSystemPrompt = effectiveSystemPrompt
             ? `${effectiveSystemPrompt}\n\n${searchInstruction}`
             : searchInstruction
         }
@@ -805,6 +887,9 @@ export default function ChatView({ conversationId, messageInputRef: externalMess
       effectiveSystemPrompt = effectiveSystemPrompt
         ? `${effectiveSystemPrompt}\n\n${dateInstruction}`
         : dateInstruction;
+
+      // Track API performance per model
+      const modelStartTimes = new Map<string, number>()
 
       // Send to AI provider(s) with streaming
       await chatService.sendMessage({
@@ -832,23 +917,57 @@ export default function ChatView({ conversationId, messageInputRef: externalMess
             }
             await addMessageToStore(activeConversationId, message)
             
-            // Track message received event
-            telemetryService.trackMessageReceived(provider, model, message.text?.length || 0)
+            // Track API performance
+            const startTime = modelStartTimes.get(modelId)
+            if (startTime) {
+              const duration = Date.now() - startTime
+              telemetryService.trackAPIPerformance(provider, model, duration, true)
+              modelStartTimes.delete(modelId)
+            }
           } catch (err) {
             console.error('Failed to save assistant message:', err)
           }
-          clearStreamingMessage(activeConversationId, modelId)
+          requestAnimationFrame(() => {
+            clearStreamingMessage(activeConversationId, modelId)
+          })
         },
         onModelStreamStart: (modelId: string) => {
           console.log(`Model ${modelId} started streaming`)
+          // Record start time for this model
+          modelStartTimes.set(modelId, Date.now())
         },
         onModelError: (error: Error, modelId: string) => {
           console.error(`Model ${modelId} error:`, error)
+          
+          // Track API error and performance
+          const [provider, modelWithSuffix] = modelId.split(':')
+          const model = modelWithSuffix?.includes('#') ? modelWithSuffix.split('#')[0] : modelWithSuffix
+          
+          // Track performance (failed)
+          const startTime = modelStartTimes.get(modelId)
+          if (startTime) {
+            const duration = Date.now() - startTime
+            telemetryService.trackAPIPerformance(provider, model, duration, false)
+            modelStartTimes.delete(modelId)
+          }
+          
+          // Track error type
+          let errorType = 'unknown'
+          const errorMessage = (error.message || '').toLowerCase()
+          if (errorMessage.includes('rate limit')) {
+            errorType = 'rate_limit'
+            telemetryService.trackRateLimitError(provider, model)
+          } else if (errorMessage.includes('network') || errorMessage.includes('connection')) {
+            errorType = 'network'
+          } else if (errorMessage.includes('auth') || errorMessage.includes('api key') || errorMessage.includes('unauthorized')) {
+            errorType = 'auth'
+          } else if (errorMessage.includes('timeout')) {
+            errorType = 'timeout'
+          }
+          telemetryService.trackAPIError(provider, model, errorType)
+          
           // Show error toast for individual model failures
           if ((window as any).showToast) {
-            const [provider, modelWithSuffix] = modelId.split(':')
-            // Handle both format: 'provider:model' and 'provider:model#2'
-            const model = modelWithSuffix?.includes('#') ? modelWithSuffix.split('#')[0] : modelWithSuffix
             const suffix = modelWithSuffix?.includes('#') ? modelWithSuffix.split('#')[1] : ''
             ;(window as any).showToast({
               type: 'error',
@@ -876,31 +995,34 @@ export default function ChatView({ conversationId, messageInputRef: externalMess
     } finally {
       setIsLoading(false)
       clearStreamingMessage(activeConversationId)
-      setAbortController(null)
+      setStreamingAbortController(activeConversationId, null)
     }
   }
   
   const handleCancel = async () => {
-    if (abortController && conversationId) {
-      abortController.abort()
-      
-      // Save partial message if there's content
-      if (zustandStreamingMessage.trim()) {
-        try {
-          const partialMessage: CreateMessageInput = {
-            role: 'assistant',
-            text: zustandStreamingMessage,
-            processing_time_ms: Date.now() // We don't track start time, so use current time
+    if (conversationId) {
+      const abortController = getStreamingAbortController(conversationId)
+      if (abortController) {
+        abortController.abort()
+        
+        // Save partial message if there's content
+        if (zustandStreamingMessage.trim()) {
+          try {
+            const partialMessage: CreateMessageInput = {
+              role: 'assistant',
+              text: zustandStreamingMessage,
+              processing_time_ms: Date.now() // We don't track start time, so use current time
+            }
+            await addMessageToStore(conversationId, partialMessage)
+          } catch (err) {
+            console.error('Failed to save partial message:', err)
           }
-          await addMessageToStore(conversationId, partialMessage)
-        } catch (err) {
-          console.error('Failed to save partial message:', err)
         }
+        
+        setIsLoading(false)
+        setStreamingAbortController(conversationId, null)
+        clearStreamingMessage(conversationId)
       }
-      
-      setAbortController(null)
-      setIsLoading(false)
-      clearStreamingMessage(conversationId)
     }
   }
 
@@ -918,12 +1040,12 @@ export default function ChatView({ conversationId, messageInputRef: externalMess
     <div className="h-full flex flex-col min-w-0">
       
       {/* Header */}
-      <div className="border-b border-border/10 px-6 pt-8 pb-4 w-full glass-nav backdrop-blur-strong flex-shrink-0 select-none"
+      <div className="border-b border-border/10 pb-4 w-full glass-nav backdrop-blur-strong flex-shrink-0 select-none px-6 pt-8"
            onMouseDown={handleStartDrag}
       >
         <div className="flex items-center justify-between w-full gap-4">
-          <div 
-            className="min-w-0 flex-1 select-none" 
+          <div
+            className="min-w-0 flex-1 select-none"
             onMouseDown={handleStartDrag}
           >
             <h2 className="text-lg font-semibold truncate text-foreground/95 tracking-tight">
@@ -981,18 +1103,18 @@ export default function ChatView({ conversationId, messageInputRef: externalMess
                   <button
                     ref={modelSelectorButtonRef}
                     onClick={() => {
-                      if (!showModelSelector && modelSelectorButtonRef.current) {
+                      if (!modelSelectorOpen && modelSelectorButtonRef.current) {
                         const rect = modelSelectorButtonRef.current.getBoundingClientRect()
                         setDropdownPosition({
                           top: rect.bottom + 8,
                           right: window.innerWidth - rect.right
                         })
                       }
-                      setShowModelSelector(!showModelSelector)
+                      onToggleModelSelector?.()
                     }}
                     className="flex items-center gap-2 px-4 py-2 elegant-hover rounded-xl transition-all duration-200 hover:scale-105 text-sm shadow-elegant border border-border/20 text-muted-foreground hover:text-primary hover:border-primary/30"
                     aria-label={selectedModel && selectedModel.model ? `Selected model: ${selectedModel.model}` : 'Select AI model'}
-                    aria-expanded={showModelSelector}
+                    aria-expanded={modelSelectorOpen}
                     aria-haspopup="listbox"
                   >
                     <span className={(!selectedModel || !selectedModel.model) && (!isMultiSelectMode || selectedModels.length === 0) ? 'text-muted-foreground' : 'text-foreground/90'}>
@@ -1047,12 +1169,14 @@ export default function ChatView({ conversationId, messageInputRef: externalMess
         
         {/* Messages - this should be the scrollable area */}
         <div className="flex-1 min-h-0">
-          <MessageList 
+          <MessageList
             messages={messages}
             streamingMessage={zustandStreamingMessage}
             streamingMessagesByModel={streamingMessagesByModel}
-            isLoading={isLoading}
+            isLoading={isLoading && isCurrentConversationWaiting}
             expectedModels={isMultiSelectMode && selectedModels.length > 0 ? selectedModels : []}
+            scrollContainerRef={scrollContainerRef}
+            onScroll={handleScroll}
           />
         </div>
 
@@ -1063,7 +1187,7 @@ export default function ChatView({ conversationId, messageInputRef: externalMess
           onSend={handleSend}
           onCancel={handleCancel}
           disabled={!conversationId || (!currentConversation?.provider && !selectedModel?.provider) || (!currentConversation?.model && !selectedModel?.model)}
-          isLoading={isLoading}
+          isLoading={isLoading && isCurrentConversationWaiting}
           noProvider={!currentConversation?.model && !selectedModel?.model}
           messages={messages}
           modelCapabilities={
@@ -1088,10 +1212,11 @@ export default function ChatView({ conversationId, messageInputRef: externalMess
         settings={conversationSettings}
         onSave={handleSaveConversationSettings}
         conversationId={conversationId || null}
+        maxTemperature={maxTemperature}
       />
 
       {/* Model Selector Dropdown - Rendered as Portal */}
-      {showModelSelector && createPortal(
+      {modelSelectorOpen && createPortal(
         <div 
           ref={dropdownRef} 
           className="w-80 glass-effect border border-border/20 rounded-2xl shadow-elegant-xl z-[99999] max-h-80 overflow-y-auto overflow-x-hidden"
@@ -1111,6 +1236,7 @@ export default function ChatView({ conversationId, messageInputRef: externalMess
                 ref={searchInputRef}
                 type="text"
                 placeholder="Search models..."
+                data-model-search-input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => {
@@ -1134,7 +1260,7 @@ export default function ChatView({ conversationId, messageInputRef: externalMess
                     }
                   } else if (e.key === 'Escape') {
                     e.preventDefault()
-                    setShowModelSelector(false)
+                    onToggleModelSelector?.()
                   }
                 }}
                 className="flex-1 bg-transparent text-sm focus:outline-none placeholder:text-muted-foreground text-foreground"
@@ -1283,4 +1409,6 @@ export default function ChatView({ conversationId, messageInputRef: externalMess
       )}
     </div>
   )
-}
+})
+
+export default ChatView

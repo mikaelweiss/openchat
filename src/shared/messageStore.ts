@@ -1,5 +1,7 @@
 import Database from '@tauri-apps/plugin-sql'
 import { conversationStore } from './conversationStore'
+import { titleGenerationService } from '../services/titleGenerationService'
+import { settings, SETTINGS_KEYS } from './settingsStore'
 
 // Message Database
 class MessageDatabase {
@@ -155,7 +157,7 @@ class MessageDatabase {
       console.log('Migration v3: Backfilled previous_message_id and provider/model data')
       
     } catch (err) {
-      const errorMessage = (err as Error).message
+      const errorMessage = err instanceof Error ? err.message : String(err)
       if (errorMessage.includes('duplicate column name')) {
         console.log('Migration v3: Columns already exist, skipping')
       } else {
@@ -211,11 +213,8 @@ class MessageDatabase {
       const userMessages = allMessages.filter(msg => msg.role === 'user')
       
       if (userMessages.length === 1) {
-        // This is the first user message, update the conversation title
-        const truncatedTitle = message.text.length > 50 
-          ? message.text.substring(0, 50) + '...' 
-          : message.text
-        await conversationStore.updateConversationTitle(conversationId, truncatedTitle)
+        // This is the first user message, generate a smart title
+        await this.generateConversationTitle(conversationId, message.text)
       }
     }
     
@@ -346,6 +345,47 @@ class MessageDatabase {
     return await db.execute('DELETE FROM messages WHERE conversation_id = $1', [conversationId])
   }
 
+  /**
+   * Generate a smart conversation title using AI or fall back to text truncation
+   */
+  private async generateConversationTitle(conversationId: number, userMessage: string) {
+    try {
+      // Get the title generation model setting
+      const titleGenerationModel = await settings.get<string | null>(SETTINGS_KEYS.TITLE_GENERATION_MODEL)
+      
+      // Get providers to create the config
+      const providers = await settings.get<Record<string, any>>(SETTINGS_KEYS.PROVIDERS) || {}
+      
+      // Create config for title generation
+      const config = await titleGenerationService.createConfigFromSettings(titleGenerationModel, providers)
+      
+      let title: string
+      
+      if (config) {
+        // Use AI to generate the title
+        console.log('Generating smart title using model:', titleGenerationModel)
+        title = await titleGenerationService.generateTitle(userMessage, config)
+      } else {
+        // Fall back to simple truncation
+        console.log('No title generation model configured, using text truncation')
+        title = userMessage.length > 50 
+          ? userMessage.substring(0, 47) + '...' 
+          : userMessage
+      }
+      
+      // Update the conversation title
+      await conversationStore.updateConversationTitle(conversationId, title)
+      
+    } catch (error) {
+      console.error('Failed to generate conversation title:', error)
+      
+      // Fall back to simple truncation on any error
+      const fallbackTitle = userMessage.length > 50 
+        ? userMessage.substring(0, 47) + '...' 
+        : userMessage
+      await conversationStore.updateConversationTitle(conversationId, fallbackTitle)
+    }
+  }
 
   private parseMessage(raw: RawMessage): Message {
     return {

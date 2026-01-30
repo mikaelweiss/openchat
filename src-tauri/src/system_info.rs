@@ -477,6 +477,21 @@ async fn get_available_storage_for_path(path: &str) -> Result<u64, String> {
     Err(format!("Could not parse df output. Lines count: {}, Raw output: '{}'", lines.len(), output_str))
 }
 
+#[cfg(any(target_os = "ios", target_os = "android"))]
+async fn get_total_memory() -> Result<u64, String> {
+    Ok(4 * 1024 * 1024 * 1024)
+}
+
+#[cfg(any(target_os = "ios", target_os = "android"))]
+async fn get_available_memory() -> Result<u64, String> {
+    Ok(2 * 1024 * 1024 * 1024)
+}
+
+#[cfg(any(target_os = "ios", target_os = "android"))]
+async fn get_available_storage_for_path(_path: &str) -> Result<u64, String> {
+    Ok(10 * 1024 * 1024 * 1024)
+}
+
 #[tauri::command]
 pub async fn get_system_info() -> Result<SystemResources, String> {
     // Add timeout to prevent hanging

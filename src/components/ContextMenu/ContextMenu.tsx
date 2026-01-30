@@ -1,6 +1,6 @@
 import { createPortal } from 'react-dom'
 import { useEffect, useRef } from 'react'
-import { Star, StarOff, Trash2 } from 'lucide-react'
+import { Star, StarOff, Trash2, Edit3 } from 'lucide-react'
 
 interface ContextMenuProps {
   x: number
@@ -10,6 +10,7 @@ interface ContextMenuProps {
   isFavorite: boolean
   onToggleFavorite: () => void
   onDelete: () => void
+  onRename: () => void
 }
 
 export default function ContextMenu({
@@ -20,6 +21,7 @@ export default function ContextMenu({
   isFavorite,
   onToggleFavorite,
   onDelete,
+  onRename,
 }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -76,6 +78,16 @@ export default function ContextMenu({
             Add to favorites
           </>
         )}
+      </button>
+      <button
+        className="flex items-center gap-3 w-full px-3 py-2 text-sm hover:bg-accent transition-colors text-left"
+        onClick={() => {
+          onRename()
+          onClose()
+        }}
+      >
+        <Edit3 className="h-4 w-4" />
+        Rename conversation
       </button>
       <div className="h-px bg-border mx-1 my-1" />
       <button

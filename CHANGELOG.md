@@ -2,6 +2,30 @@
 
 All notable changes to Open Chat will be documented in this file.
 
+## [0.2.2] - TBD
+### Added
+- Added keyboard shortcut command/control + shift + f to search
+- Added keybaord shortcut command/control + option + f to send feedback
+- Added a shimmer effect
+
+## [0.2.1] - 2025-08-25
+### Added
+- Added search to the sidebar
+
+## [0.2.0] - 2025-08-25
+### Added
+- Beautiful app intro animation
+- Added the ability to choose a model for smart title generation
+- Better token and cost counting
+- Added keyboard command to quickly switch the model (command + j and command + k)
+
+### Fixed
+- Fixed issue where changing the star value of a conversation would change it's last updated date
+- Fixed issue where clicking the x button wouldn't close the app
+- Fixed issue where draging an attachment into the chat would result in multiple duplicates
+- Fixed bug where you couldn't start a new chat while waiting for the assistant to finish responding
+- Fixed issue where you couldn't send a message to some models because of an issue with reasoning
+
 ## [0.1.9] - 2025-08-13
 ### Added
 - Added local LLM support

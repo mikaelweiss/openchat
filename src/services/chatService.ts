@@ -1,5 +1,6 @@
 import { type CreateMessageInput, messageStore } from '../shared/messageStore'
 import { functionCallingService } from './functionCallingService'
+import { tokenService } from './tokenService'
 
 interface OpenAIMessage {
   role: 'system' | 'user' | 'assistant' | 'tool'
@@ -316,7 +317,8 @@ class ChatService {
     // Add conversation history - filter to create model-specific history
     for (const message of conversationHistory) {
       if (message.role === 'system') continue // Skip system messages from history (we use systemPrompt)
-      
+      if (userMessageId && message.id === userMessageId) continue // Skip the current user message (added separately below)
+
       // Include all user messages
       if (message.role === 'user') {
         const content = this.buildMessageContent({
@@ -360,8 +362,14 @@ class ChatService {
       role: 'user',
       content: userContent
     })
+    
+    // Calculate input tokens for later use if API doesn't provide them
+    const inputText = this.messagesToText(messages)
+    const estimatedInputTokens = (await tokenService.countTokens(inputText, modelConfig.model)) || 0
 
     // Build request payload based on provider
+    // Note: Anthropic doesn't allow both temperature and top_p together,
+    // so we only send top_p if temperature is not specified
     const requestPayload = isAnthropic ? {
       model: modelConfig.model,
       messages,
@@ -482,7 +490,8 @@ class ChatService {
         onStreamChunk: onStreamChunk ? (content: string) => onStreamChunk(content, modelId) : undefined,
         onStreamComplete: onStreamComplete ? (message: CreateMessageInput) => onStreamComplete(message, modelId) : undefined,
         isAnthropic,
-        isOllama
+        isOllama,
+        estimatedInputTokens
       })
     } else {
       return this.handleNonStreamResponse(response, {
@@ -491,7 +500,8 @@ class ChatService {
         userMessageId,
         processingTime,
         isAnthropic,
-        isOllama
+        isOllama,
+        estimatedInputTokens
       })
     }
   }
@@ -524,6 +534,27 @@ class ChatService {
     return endpoint + '/chat/completions'
   }
 
+  /**
+   * Convert messages array to text for token counting
+   */
+  private messagesToText(messages: OpenAIMessage[]): string {
+    let text = ''
+    for (const message of messages) {
+      text += `${message.role}: `
+      if (typeof message.content === 'string') {
+        text += message.content
+      } else if (Array.isArray(message.content)) {
+        for (const item of message.content) {
+          if (item.type === 'text' && item.text) {
+            text += item.text
+          }
+        }
+      }
+      text += '\n\n'
+    }
+    return text
+  }
+  
   /**
    * Build provider-compatible message content from our message format
    */
@@ -663,6 +694,7 @@ class ChatService {
       onStreamComplete?: (message: CreateMessageInput) => void
       isAnthropic?: boolean
       isOllama?: boolean
+      estimatedInputTokens?: number
     }
   ): Promise<CreateMessageInput> {
     const reader = response.body?.getReader()
@@ -675,6 +707,8 @@ class ChatService {
     let fullContent = ''
     let totalInputTokens = 0
     let totalOutputTokens = 0
+    let totalCachedTokens = 0
+    let totalReasoningTokens = 0
     let wasAborted = false
 
     try {
@@ -717,6 +751,13 @@ class ChatService {
               // Anthropic streaming format
               if (chunk.type === 'content_block_delta') {
                 deltaContent = chunk.delta?.text || ''
+              } else if (chunk.type === 'message_start' && chunk.message?.usage) {
+                // Capture initial token counts
+                totalInputTokens = chunk.message.usage.input_tokens || 0
+                totalCachedTokens = chunk.message.usage.cache_read_input_tokens || 0
+              } else if (chunk.type === 'message_delta' && chunk.usage) {
+                // Capture final token counts
+                totalOutputTokens = chunk.usage.output_tokens || 0
               }
             } else if (options.isOllama) {
               // Ollama streaming format - content is in message.content
@@ -728,6 +769,18 @@ class ChatService {
             } else {
               // OpenAI streaming format
               deltaContent = chunk.choices?.[0]?.delta?.content || ''
+              
+              // Capture usage from streaming response if available
+              if (chunk.usage) {
+                totalInputTokens = chunk.usage.prompt_tokens || totalInputTokens
+                totalOutputTokens = chunk.usage.completion_tokens || totalOutputTokens
+                totalCachedTokens = chunk.usage.prompt_tokens_details?.cached_tokens || totalCachedTokens
+                
+                // For reasoning models (o1, o3)
+                if (chunk.usage.completion_tokens_details?.reasoning_tokens) {
+                  totalReasoningTokens = chunk.usage.completion_tokens_details.reasoning_tokens
+                }
+              }
             }
             
             if (deltaContent) {
@@ -735,8 +788,10 @@ class ChatService {
               options.onStreamChunk?.(deltaContent)
             }
             
-            // For Ollama, break when done
-            if (isDone) {
+            // For Ollama, capture token counts when done
+            if (isDone && options.isOllama) {
+              totalInputTokens = chunk.prompt_eval_count || 0
+              totalOutputTokens = chunk.eval_count || 0
               break
             }
           } catch (err) {
@@ -745,12 +800,32 @@ class ChatService {
         }
       }
 
+      // If we didn't get token counts from the API, use accurate tokenizers
+      if (totalInputTokens === 0 && options.estimatedInputTokens) {
+        totalInputTokens = options.estimatedInputTokens
+      }
+      if (totalOutputTokens === 0 && fullContent) {
+        totalOutputTokens = (await tokenService.countTokens(fullContent, options.model)) || 0
+      }
+      
+      // Calculate cost
+      const cost = tokenService.calculateCost(
+        totalInputTokens,
+        totalOutputTokens,
+        options.model,
+        totalCachedTokens,
+        totalReasoningTokens
+      )
+      
       // Build final assistant message
       const assistantMessage: CreateMessageInput = {
         role: 'assistant',
         text: fullContent,
-        input_tokens: totalInputTokens,
-        output_tokens: totalOutputTokens,
+        input_tokens: totalInputTokens || undefined,
+        output_tokens: totalOutputTokens || undefined,
+        cached_tokens: totalCachedTokens || undefined,
+        reasoning_tokens: totalReasoningTokens || undefined,
+        cost: cost > 0 ? cost : undefined,
         processing_time_ms: options.processingTime,
         previous_message_id: options.userMessageId,
         provider: options.provider,
@@ -768,11 +843,23 @@ class ChatService {
         wasAborted = true
         // Don't call onStreamComplete for aborted requests - let the cancel handler deal with partial content
         // Still return the partial message for potential use
+        // Calculate cost even for partial response
+        const partialCost = tokenService.calculateCost(
+          totalInputTokens,
+          totalOutputTokens || (await tokenService.countTokens(fullContent, options.model)) || 0,
+          options.model,
+          totalCachedTokens,
+          totalReasoningTokens
+        )
+        
         return {
           role: 'assistant',
           text: fullContent,
-          input_tokens: totalInputTokens,
-          output_tokens: totalOutputTokens,
+          input_tokens: totalInputTokens || undefined,
+          output_tokens: totalOutputTokens || undefined,
+          cached_tokens: totalCachedTokens || undefined,
+          reasoning_tokens: totalReasoningTokens || undefined,
+          cost: partialCost > 0 ? partialCost : undefined,
           processing_time_ms: options.processingTime,
           previous_message_id: options.userMessageId,
           provider: options.provider,
@@ -797,6 +884,7 @@ class ChatService {
       processingTime: number
       isAnthropic?: boolean
       isOllama?: boolean
+      estimatedInputTokens?: number
     }
   ): Promise<CreateMessageInput> {
     const data = await response.json()
@@ -804,6 +892,8 @@ class ChatService {
     let text = ''
     let inputTokens: number | undefined = undefined
     let outputTokens: number | undefined = undefined
+    let cachedTokens: number | undefined = undefined
+    let reasoningTokens: number | undefined = undefined
 
     if (options.isOllama) {
       // Ollama non-streaming format: { message: { content: "..." } }
@@ -816,18 +906,45 @@ class ChatService {
       text = data.content?.[0]?.text || ''
       inputTokens = data.usage?.input_tokens
       outputTokens = data.usage?.output_tokens
+      cachedTokens = data.usage?.cache_read_input_tokens
     } else {
       // OpenAI format
       text = data.choices?.[0]?.message?.content || ''
       inputTokens = data.usage?.prompt_tokens
       outputTokens = data.usage?.completion_tokens
+      cachedTokens = data.usage?.prompt_tokens_details?.cached_tokens
+      
+      // For reasoning models
+      if (data.usage?.completion_tokens_details?.reasoning_tokens) {
+        reasoningTokens = data.usage.completion_tokens_details.reasoning_tokens
+      }
     }
+
+    // If we didn't get token counts from the API, use accurate tokenizers
+    if (!inputTokens && options.estimatedInputTokens) {
+      inputTokens = options.estimatedInputTokens
+    }
+    if (!outputTokens && text) {
+      outputTokens = (await tokenService.countTokens(text, options.model)) || 0
+    }
+    
+    // Calculate cost
+    const cost = tokenService.calculateCost(
+      inputTokens || 0,
+      outputTokens || 0,
+      options.model,
+      cachedTokens || 0,
+      reasoningTokens || 0
+    )
 
     const assistantMessage: CreateMessageInput = {
       role: 'assistant',
       text,
       input_tokens: inputTokens,
       output_tokens: outputTokens,
+      cached_tokens: cachedTokens,
+      reasoning_tokens: reasoningTokens,
+      cost: cost > 0 ? cost : undefined,
       processing_time_ms: options.processingTime,
       previous_message_id: options.userMessageId,
       provider: options.provider,

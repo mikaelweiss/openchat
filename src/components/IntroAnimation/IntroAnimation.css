@@ -1,0 +1,222 @@
+.intro-animation-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 10000;
+  overflow: hidden;
+  background: #000;
+  animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.intro-animation-overlay.fade-out {
+  animation: fadeOut 1s ease-out forwards;
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+
+.intro-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.intro-content {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  z-index: 100;
+  pointer-events: none;
+  filter: none;
+  backdrop-filter: none;
+  /* Enable GPU acceleration for smoother animations */
+  will-change: transform;
+  transform: translate3d(-50%, -50%, 0);
+}
+
+.intro-title {
+  font-size: clamp(2rem, 6vw, 4rem);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #ffffff;
+  text-shadow: 
+    0 0 10px rgba(255, 255, 255, 0.8),
+    0 0 20px rgba(0, 191, 156, 0.6),
+    0 0 30px rgba(139, 92, 246, 0.4);
+  opacity: 0;
+  transform: translateY(20px);
+  transition: all 1s cubic-bezier(0.4, 0, 0.2, 1);
+  backdrop-filter: blur(0px);
+  position: relative;
+  z-index: 100;
+  white-space: nowrap;
+}
+
+@keyframes gradientShift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.intro-title.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.intro-title .letter {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(30px);
+  animation: letterReveal 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  will-change: transform, opacity;
+}
+
+@keyframes letterReveal {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.intro-continue-button {
+  position: absolute;
+  bottom: 10%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 1rem 2rem;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50px;
+  color: white;
+  font-size: 1rem;
+  font-weight: 300;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  opacity: 0;
+  animation: pulseGlow 2s ease-in-out infinite;
+  pointer-events: all;
+}
+
+.intro-continue-button.visible {
+  opacity: 1;
+  animation: fadeInUp 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards, pulseGlow 2s ease-in-out infinite;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 20px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(0, 191, 156, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(0, 191, 156, 0.5), 0 0 60px rgba(139, 92, 246, 0.3);
+  }
+}
+
+.intro-continue-button:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateX(-50%) translateY(-2px);
+  box-shadow: 0 0 50px rgba(0, 191, 156, 0.6), 0 0 80px rgba(139, 92, 246, 0.4);
+}
+
+.intro-continue-button:active {
+  transform: translateX(-50%) translateY(0);
+}
+
+.intro-hint {
+  position: absolute;
+  bottom: 5%;
+  left: 50%;
+  transform: translateX(-50%);
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.875rem;
+  letter-spacing: 0.05em;
+  opacity: 0;
+  transition: opacity 0.5s ease-out;
+}
+
+.intro-hint.visible {
+  opacity: 1;
+}
+
+
+/* Shimmer effect for text */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.intro-title.shimmer {
+  color: #ffffff;
+  text-shadow: 
+    0 0 10px rgba(255, 255, 255, 0.9),
+    0 0 20px rgba(0, 191, 156, 0.5),
+    0 0 30px rgba(139, 92, 246, 0.3);
+  /* Disable continuous glow animation for better performance */
+}
+
+/* Removed textGlow animation for better performance */
+
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .intro-animation-overlay,
+  .intro-title,
+  .intro-title .letter,
+  .intro-continue-button {
+    animation: none !important;
+    transition: opacity 0.3s ease !important;
+  }
+  
+  .intro-title.visible,
+  .intro-continue-button.visible {
+    opacity: 1;
+    transform: none;
+  }
+}

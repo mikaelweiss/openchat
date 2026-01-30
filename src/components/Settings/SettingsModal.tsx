@@ -156,6 +156,7 @@ export default function SettingsModal({ isOpen, onClose, initialSection = 'gener
     showPricing,
     showConversationSettings,
     providers,
+    titleGenerationModel,
     handleThemeChange,
     handleSendKeyChange,
     handleGlobalHotkeyChange,
@@ -164,6 +165,7 @@ export default function SettingsModal({ isOpen, onClose, initialSection = 'gener
     handleToggleModel,
     handleCapabilityToggle,
     handleOnboardingCompletion,
+    handleTitleGenerationModelChange,
     addProvider,
     updateProvider,
     removeProvider,
@@ -228,7 +230,7 @@ export default function SettingsModal({ isOpen, onClose, initialSection = 'gener
 
           {/* Tab Content */}
           <div className="flex-1 p-6 overflow-y-auto min-h-0">
-            {activeTab === 'general' && <GeneralSettings theme={theme} setTheme={handleThemeChange} sendKey={sendKey} setSendKey={handleSendKeyChange} showPricing={showPricing} setShowPricing={handleShowPricingChange} showConversationSettings={showConversationSettings} setShowConversationSettings={handleShowConversationSettingsChange} globalHotkey={globalHotkey} setGlobalHotkey={handleGlobalHotkeyChange} onRestartOnboarding={handleRestartOnboarding} />}
+            {activeTab === 'general' && <GeneralSettings theme={theme} setTheme={handleThemeChange} sendKey={sendKey} setSendKey={handleSendKeyChange} showPricing={showPricing} setShowPricing={handleShowPricingChange} showConversationSettings={showConversationSettings} setShowConversationSettings={handleShowConversationSettingsChange} globalHotkey={globalHotkey} setGlobalHotkey={handleGlobalHotkeyChange} onRestartOnboarding={handleRestartOnboarding} titleGenerationModel={titleGenerationModel} setTitleGenerationModel={handleTitleGenerationModelChange} providers={providers} />}
             {activeTab === 'models' && <ModelsSettings providers={providers} onToggleModel={handleToggleModel} onCapabilityToggle={handleCapabilityToggle} onAddProvider={async (name, endpoint, apiKey, isLocal) => await addProvider({ name, endpoint, apiKey, isLocal })} onUpdateProvider={async (providerId, updates) => await updateProvider(providerId, updates)} onRemoveProvider={removeProvider} onRefreshModels={refreshProviderModels} />}
             {activeTab === 'search' && <SearchSettings />}
             {activeTab === 'about' && <AboutSettings />}
@@ -389,10 +391,31 @@ function HotkeyCapture({ value, onChange, onClear }: { value: string, onChange: 
   )
 }
 
-function GeneralSettings({ theme, setTheme, sendKey, setSendKey, showPricing, setShowPricing, showConversationSettings, setShowConversationSettings, globalHotkey, setGlobalHotkey, onRestartOnboarding }: any) {
+function GeneralSettings({ theme, setTheme, sendKey, setSendKey, showPricing, setShowPricing, showConversationSettings, setShowConversationSettings, globalHotkey, setGlobalHotkey, onRestartOnboarding, titleGenerationModel, setTitleGenerationModel, providers }: any) {
   const handleClearHotkey = () => {
     setGlobalHotkey('')
   }
+
+  // Get all available models from all enabled providers
+  const getAllAvailableModels = () => {
+    const models: Array<{ value: string; label: string; provider: string }> = []
+    
+    Object.entries(providers || {}).forEach(([providerId, provider]: [string, any]) => {
+      if (provider.connected && provider.enabledModels?.length > 0) {
+        provider.enabledModels.forEach((modelName: string) => {
+          models.push({
+            value: `${providerId}:${modelName}`,
+            label: `${modelName} (${provider.name})`,
+            provider: provider.name
+          })
+        })
+      }
+    })
+    
+    return models.sort((a, b) => a.label.localeCompare(b.label))
+  }
+
+  const availableModels = getAllAvailableModels()
 
   return (
     <div className="space-y-6">
@@ -471,6 +494,31 @@ function GeneralSettings({ theme, setTheme, sendKey, setSendKey, showPricing, se
               </p>
             </div>
           </div>
+
+          <div className="space-y-3">
+            <div>
+              <label className="text-sm font-medium">Smart conversation titles</label>
+              <p className="text-xs text-muted-foreground mt-1">
+                Select a model to automatically generate conversation titles based on your first message. If no model is selected, titles will use the first 50 characters of your message.
+              </p>
+            </div>
+            <select
+              value={titleGenerationModel || ''}
+              onChange={(e) => setTitleGenerationModel(e.target.value || null)}
+              className="w-full px-3 py-2 bg-secondary rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+            >
+              <option value="">Use message text (default)</option>
+              {availableModels.length === 0 ? (
+                <option disabled>No models available - add providers in Models tab</option>
+              ) : (
+                availableModels.map((model) => (
+                  <option key={model.value} value={model.value}>
+                    {model.label}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -532,6 +580,26 @@ function GeneralSettings({ theme, setTheme, sendKey, setSendKey, showPricing, se
                 className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
               >
                 Restart Setup
+              </button>
+            </div>
+          </div>
+          
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <label className="text-sm font-medium">Replay Intro Animation</label>
+              <p className="text-xs text-muted-foreground mt-1">
+                Watch the welcome animation again.
+              </p>
+            </div>
+            <div className="ml-4">
+              <button
+                onClick={() => {
+                  // Dispatch event to replay intro
+                  window.dispatchEvent(new CustomEvent('replayIntro'))
+                }}
+                className="px-4 py-2 text-sm bg-secondary text-foreground rounded-md hover:bg-accent transition-colors"
+              >
+                Replay Intro
               </button>
             </div>
           </div>

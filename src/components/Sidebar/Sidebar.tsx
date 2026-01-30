@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, ChevronDown, Settings, Trash2, Star, MessageSquare } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ChevronDown, Settings, Trash2, Star, MessageSquare, Search, X } from 'lucide-react'
 import { format } from 'date-fns'
 import clsx from 'clsx'
 import { getCurrentWindow } from '@tauri-apps/api/window'
@@ -15,11 +15,16 @@ type SidebarConversation = Conversation | (PendingConversation & { id: 'pending'
 const isPersistentConversation = (conv: SidebarConversation): conv is Conversation => {
   return typeof conv.id === 'number'
 }
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
 import ContextMenu from '../ContextMenu/ContextMenu'
 import EmptyState from '../EmptyState/EmptyState'
 import { ConversationListSkeleton } from '../Skeleton/Skeleton'
+import RenameModal from '../RenameModal/RenameModal'
 import Logo from '../../assets/Logo.svg'
+
+export interface SidebarHandle {
+  focusSearch: () => void
+}
 
 interface SidebarProps {
   isOpen: boolean
@@ -33,7 +38,7 @@ interface SidebarProps {
   onDeleteConversation?: (deletedId: number | 'pending') => void
 }
 
-export default function Sidebar({
+const Sidebar = forwardRef<SidebarHandle, SidebarProps>(({
   isOpen,
   width,
   onToggle,
@@ -43,14 +48,16 @@ export default function Sidebar({
   selectedConversationId,
   onSelectConversation,
   onDeleteConversation,
-}: SidebarProps) {
-  const { conversations, deleteConversation, toggleConversationFavorite, createPendingConversation } = useConversations()
+}, ref) => {
+  const { conversations, deleteConversation, toggleConversationFavorite, createPendingConversation, updateConversation } = useConversations()
   const getMessages = useAppStore((state) => state.getMessages)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   
   // For now, disable loading/error states - can be added back later
   const loading = false
   const error = null
   const [confirmDelete, setConfirmDelete] = useState<{ id: number | 'pending'; title: string } | null>(null)
+  const [renameModal, setRenameModal] = useState<{ id: number | 'pending'; title: string } | null>(null)
   const [contextMenu, setContextMenu] = useState<{
     x: number
     y: number
@@ -61,6 +68,14 @@ export default function Sidebar({
     const saved = localStorage.getItem('favoritesCollapsed')
     return saved === 'true'
   })
+  const [searchQuery, setSearchQuery] = useState('')
+  
+  useImperativeHandle(ref, () => ({
+    focusSearch: () => {
+      searchInputRef.current?.focus()
+      searchInputRef.current?.select()
+    }
+  }))
   
   useEffect(() => {
     localStorage.setItem('favoritesCollapsed', isFavoritesCollapsed.toString())
@@ -136,6 +151,17 @@ export default function Sidebar({
       console.error('Failed to toggle favorite:', err)
     }
   }
+
+  const handleRename = async (id: number | 'pending', newTitle: string) => {
+    if (!newTitle.trim()) return
+    
+    try {
+      await updateConversation(id, { title: newTitle.trim() })
+      setRenameModal(null)
+    } catch (err) {
+      console.error('Failed to rename conversation:', err)
+    }
+  }
   
 
   const handleStartDrag = async (e: React.MouseEvent) => {
@@ -150,9 +176,26 @@ export default function Sidebar({
   
   // Group conversations by date and favorites
   const getConversationsByDate = () => {
-    // Separate conversations by favorite status
-    const favorites = conversations.filter(conv => isPersistentConversation(conv) && conv.is_favorite)
-    const regular = conversations.filter(conv => !isPersistentConversation(conv) || !conv.is_favorite)
+    // Filter conversations based on search query
+    const filteredConversations = conversations.filter(conv => {
+      if (searchQuery === '') return true
+      
+      const query = searchQuery.toLowerCase()
+      
+      // Search in conversation title
+      if (conv.title.toLowerCase().includes(query)) return true
+      
+      // Search in message content
+      const messages = getMessages(conv.id)
+      return messages.some(message => 
+        message.text?.toLowerCase().includes(query) || 
+        message.thinking?.toLowerCase().includes(query)
+      )
+    })
+    
+    // Separate filtered conversations by favorite status
+    const favorites = filteredConversations.filter(conv => isPersistentConversation(conv) && conv.is_favorite)
+    const regular = filteredConversations.filter(conv => !isPersistentConversation(conv) || !conv.is_favorite)
     
     // Group regular conversations by date
     const regularByDate = regular.reduce((acc, conv) => {
@@ -243,7 +286,7 @@ export default function Sidebar({
         </button>
         <button
           onClick={(e) => handleDeleteClick(e, conversation)}
-          className="absolute right-2 p-1.5 opacity-0 group-hover:opacity-100 hover:bg-destructive/20 hover:text-destructive rounded-lg transition-all duration-200 hover:scale-110"
+          className="absolute right-2 p-1.5 hover:bg-destructive/20 hover:text-destructive rounded-lg transition-all duration-200 opacity-0 group-hover:opacity-100 hover:scale-110"
           title="Delete conversation (hold ⌘ to skip confirmation)"
         >
           <Trash2 className="h-4 w-4" />
@@ -308,8 +351,40 @@ export default function Sidebar({
           !isOpen && "invisible"
         )}
       >
+        {/* Search Bar */}
+        <div className="absolute top-[97px] left-0 right-0 z-20 px-4 pb-3 glass-nav backdrop-blur-strong border-b border-border/10">
+          <div className="relative">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+              <Search className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  e.preventDefault()
+                  searchInputRef.current?.blur()
+                }
+              }}
+              placeholder="Search conversations..."
+              className="w-full pl-10 pr-10 py-2.5 bg-background/50 border border-border/30 rounded-xl text-sm placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50 transition-all"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 hover:bg-muted/20 rounded-md transition-colors"
+                title="Clear search"
+              >
+                <X className="h-3.5 w-3.5 text-muted-foreground" />
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Conversations List - Now extends full height behind header */}
-        <div className="absolute inset-0 overflow-y-auto elegant-scrollbar pt-24 pb-20 glass-effect"
+        <div className="absolute inset-0 overflow-y-auto elegant-scrollbar pt-36 pb-20 glass-effect"
           style={{
             scrollbarWidth: 'none'
           }}
@@ -474,6 +549,16 @@ export default function Sidebar({
         </div>
       )}
 
+      {/* Rename Modal */}
+      {renameModal && (
+        <RenameModal
+          isOpen={!!renameModal}
+          currentTitle={renameModal.title}
+          onClose={() => setRenameModal(null)}
+          onRename={(newTitle) => handleRename(renameModal.id, newTitle)}
+        />
+      )}
+
       {/* Context Menu */}
       <ContextMenu
         x={contextMenu?.x || 0}
@@ -494,7 +579,17 @@ export default function Sidebar({
             });
           }
         }}
+        onRename={() => {
+          if (contextMenu) {
+            setRenameModal({
+              id: contextMenu.conversation.id,
+              title: contextMenu.conversation.title,
+            });
+          }
+        }}
       />
     </div>
   );
-}
+})
+
+export default Sidebar

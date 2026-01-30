@@ -1,0 +1,8 @@
+{
+  "identifier": "mobile-capability",
+  "platforms": ["iOS", "android"],
+  "windows": ["main"],
+  "permissions": [
+    "keychain:default"
+  ]
+}

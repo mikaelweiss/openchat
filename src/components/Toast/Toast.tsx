@@ -76,8 +76,36 @@ const ToastItem = ({ toast, onRemove }: { toast: Toast; onRemove: (id: string) =
   )
 }
 
-export default function ToastContainer() {
+interface ToastContainerProps {
+  mobile?: boolean
+}
+
+export default function ToastContainer({ mobile = false }: ToastContainerProps) {
   const [toasts, setToasts] = useState<Toast[]>([])
+  const [bottomOffset, setBottomOffset] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (!mobile) return
+
+    const initialHeight = window.visualViewport?.height ?? window.innerHeight
+
+    const handleViewportResize = () => {
+      if (window.visualViewport) {
+        const keyboardHeight = initialHeight - window.visualViewport.height
+        const isKeyboardOpen = keyboardHeight > 100
+        if (isKeyboardOpen) {
+          setBottomOffset(keyboardHeight + 80)
+        } else {
+          setBottomOffset(null)
+        }
+      }
+    }
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleViewportResize)
+      return () => window.visualViewport?.removeEventListener('resize', handleViewportResize)
+    }
+  }, [mobile])
 
   const addToast = (toast: Omit<Toast, 'id'>) => {
     const newToast: Toast = {
@@ -101,7 +129,13 @@ export default function ToastContainer() {
   return (
     <div
       aria-live="assertive"
-      className="pointer-events-none fixed bottom-0 right-0 flex flex-col items-end px-4 py-6 space-y-4 z-50"
+      className={clsx(
+        'pointer-events-none fixed flex flex-col space-y-4 z-50',
+        mobile
+          ? 'left-4 right-4 items-center'
+          : 'bottom-0 right-0 items-end px-4 py-6'
+      )}
+      style={mobile ? { bottom: bottomOffset ?? 96 } : undefined}
     >
       {toasts.map((toast) => (
         <ToastItem key={toast.id} toast={toast} onRemove={removeToast} />
