@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "desktop": "tauri dev",
     "ios": "tauri ios dev",
     "android": "tauri android dev",
     "ios:build": "tauri ios build",
