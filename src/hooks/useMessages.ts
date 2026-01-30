@@ -21,7 +21,9 @@ export function extractCitations(text: string): { text: string; citations: any[]
     const newNumber = urlToNumberMap.get(url)
     const oldCitation = `[${oldNumber}](${url})`
     const newCitation = `[${newNumber}](${url})`
-    updatedText = updatedText.replaceAll(oldCitation, newCitation)
+    // Use replace with regex for ES2020 compatibility
+    const escapedOldCitation = oldCitation.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    updatedText = updatedText.replace(new RegExp(escapedOldCitation, 'g'), newCitation)
   })
 
   const finalCitations = Array.from(urlToNumberMap.entries())

@@ -3,21 +3,37 @@ import { type CreateMessageInput } from '../shared/messageStore'
 
 interface OpenAIMessage {
   role: 'system' | 'user' | 'assistant' | 'tool'
-  content?: string | Array<{ 
+  content?: string | Array<{
     type: 'text' | 'image_url'
     text?: string
     image_url?: { url: string }
-  }> 
-  tool_calls?: Array<{ 
+  }>
+  tool_calls?: Array<{
     id: string
     type: 'function'
     function: {
       name: string
       arguments: string
     }
-  }> 
+  }>
   tool_call_id?: string
   name?: string
+}
+
+// Anthropic-specific types
+interface AnthropicContentBlock {
+  type: 'text' | 'tool_use' | 'tool_result'
+  text?: string
+  id?: string
+  name?: string
+  input?: any
+  tool_use_id?: string
+  content?: string
+}
+
+interface AnthropicMessage {
+  role: 'user' | 'assistant'
+  content: string | AnthropicContentBlock[]
 }
 
 interface ModelConfig {
@@ -103,14 +119,29 @@ class FunctionCallingService {
 
         console.log('Tool results:', toolResults)
 
-        // Add tool results to messages
-        for (const result of toolResults) {
+        // Add tool results to messages (format depends on provider)
+        const isAnthropic = modelConfig.endpoint.includes('anthropic.com')
+
+        if (isAnthropic) {
+          // Anthropic: tool results must be user messages with tool_result blocks
           currentMessages.push({
-            role: 'tool',
-            content: result.content,
-            tool_call_id: result.tool_call_id,
-            name: result.name
+            role: 'user',
+            content: toolResults.map(result => ({
+              type: 'tool_result',
+              tool_use_id: result.tool_call_id,
+              content: result.content
+            })) as any
           })
+        } else {
+          // OpenAI/others: standard tool role messages
+          for (const result of toolResults) {
+            currentMessages.push({
+              role: 'tool',
+              content: result.content,
+              tool_call_id: result.tool_call_id,
+              name: result.name
+            })
+          }
         }
 
         console.log('Messages after tool execution:', currentMessages.slice(-3)) // Show last 3 messages
@@ -138,6 +169,86 @@ class FunctionCallingService {
   }
 
   /**
+   * Convert OpenAI-format messages to Anthropic format
+   */
+  private convertToAnthropicMessages(messages: OpenAIMessage[]): AnthropicMessage[] {
+    return messages.map(msg => {
+      // Tool result messages (OpenAI 'tool' role -> Anthropic user message with tool_result)
+      if (msg.role === 'tool') {
+        return {
+          role: 'user' as const,
+          content: [{
+            type: 'tool_result' as const,
+            tool_use_id: msg.tool_call_id || '',
+            content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
+          }]
+        }
+      }
+
+      // Assistant messages with tool calls
+      if (msg.role === 'assistant' && msg.tool_calls) {
+        const contentBlocks: AnthropicContentBlock[] = []
+
+        // Add text content if exists
+        if (msg.content) {
+          const textContent = typeof msg.content === 'string' ? msg.content : ''
+          if (textContent) {
+            contentBlocks.push({ type: 'text', text: textContent })
+          }
+        }
+
+        // Add tool use blocks
+        msg.tool_calls.forEach(tc => {
+          contentBlocks.push({
+            type: 'tool_use',
+            id: tc.id,
+            name: tc.function.name,
+            input: JSON.parse(tc.function.arguments)
+          })
+        })
+
+        return {
+          role: 'assistant' as const,
+          content: contentBlocks
+        }
+      }
+
+      // Regular text messages
+      if (typeof msg.content === 'string') {
+        // Anthropic doesn't support system role in messages array
+        // System prompts should be sent via the 'system' parameter
+        return {
+          role: (msg.role === 'system' ? 'user' : msg.role) as 'user' | 'assistant',
+          content: [{ type: 'text', text: msg.content }]
+        }
+      }
+
+      // Multimodal content (images, etc.)
+      if (Array.isArray(msg.content)) {
+        const anthropicBlocks: AnthropicContentBlock[] = msg.content.map(block => {
+          if (block.type === 'text' && block.text) {
+            return { type: 'text', text: block.text }
+          }
+          // For now, convert image_url to text description
+          // TODO: Proper image support for Anthropic
+          return { type: 'text', text: '[Image]' }
+        })
+
+        return {
+          role: msg.role as 'user' | 'assistant',
+          content: anthropicBlocks
+        }
+      }
+
+      // Fallback
+      return {
+        role: 'user' as const,
+        content: [{ type: 'text', text: '' }]
+      }
+    })
+  }
+
+  /**
    * Make a single API call to the model
    */
   private async callModel({
@@ -160,19 +271,36 @@ class FunctionCallingService {
     }> 
   }> {
     const isAnthropic = modelConfig.endpoint.includes('anthropic.com')
-    
+
+    // Convert messages to provider-specific format
+    let apiMessages: any = messages
+    let anthropicTools: any[] | undefined
+
+    if (isAnthropic) {
+      apiMessages = this.convertToAnthropicMessages(messages)
+
+      // Convert tools to Anthropic format (use input_schema instead of parameters)
+      if (modelConfig.tools && modelConfig.tools.length > 0) {
+        anthropicTools = modelConfig.tools.map(tool => ({
+          name: tool.function.name,
+          description: tool.function.description,
+          input_schema: tool.function.parameters
+        }))
+      }
+    }
+
     // Build request payload
     const requestPayload = isAnthropic ? {
       model: modelConfig.model,
-      messages,
+      messages: apiMessages,
       stream: false, // Function calling is easier with non-streaming for now
       max_tokens: modelConfig.maxTokens || 1024,
       ...(modelConfig.temperature !== undefined && { temperature: modelConfig.temperature }),
       ...(modelConfig.topP !== undefined && { top_p: modelConfig.topP }),
-      ...(modelConfig.tools && modelConfig.tools.length > 0 && { tools: modelConfig.tools }),
+      ...(anthropicTools && anthropicTools.length > 0 && { tools: anthropicTools }),
     } : {
       model: modelConfig.model,
-      messages,
+      messages: apiMessages,
       stream: false,
       ...(modelConfig.temperature !== undefined && { temperature: modelConfig.temperature }),
       ...(modelConfig.maxTokens !== undefined && { max_tokens: modelConfig.maxTokens }),
@@ -215,11 +343,36 @@ class FunctionCallingService {
 
     // Parse response based on provider
     if (isAnthropic) {
-      // Anthropic format
-      return {
-        content: data.content?.[0]?.text || '',
-        tool_calls: data.tool_calls
-      }
+      // Anthropic format - tool use is in content array, not separate field
+      const contentBlocks = data.content || []
+
+      // Extract text content from text blocks
+      const textBlocks = contentBlocks.filter((block: any) => block.type === 'text')
+      const textContent = textBlocks.map((block: any) => block.text).join('') || ''
+
+      // Extract tool use blocks
+      const toolUseBlocks = contentBlocks.filter((block: any) => block.type === 'tool_use')
+
+      // Convert Anthropic tool_use format to OpenAI tool_calls format for internal consistency
+      const tool_calls = toolUseBlocks.length > 0 && data.stop_reason === 'tool_use'
+        ? toolUseBlocks.map((block: any) => ({
+            id: block.id,
+            type: 'function' as const,
+            function: {
+              name: block.name,
+              arguments: JSON.stringify(block.input) // Convert input object to JSON string
+            }
+          }))
+        : undefined
+
+      console.log('Anthropic response:', {
+        stop_reason: data.stop_reason,
+        textContent,
+        tool_calls,
+        raw_content: contentBlocks
+      })
+
+      return { content: textContent, tool_calls }
     } else {
       // OpenAI format
       const message = data.choices?.[0]?.message

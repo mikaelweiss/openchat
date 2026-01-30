@@ -1,5 +1,5 @@
-import { useState, useCallback, useEffect } from 'react'
-import { Plus, Trash2, Eye, EyeOff, Globe, ExternalLink, CheckCircle, AlertTriangle, XCircle, ChevronDown } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Plus, Trash2, Eye, EyeOff, Globe, ExternalLink, CheckCircle, AlertTriangle, ChevronDown } from 'lucide-react'
 import { SearchEngineConfig, SearchEngineKind } from '../../types/search'
 import { useSearchStore } from '../../stores/searchStore'
 

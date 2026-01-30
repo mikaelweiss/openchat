@@ -54,7 +54,7 @@ export interface WebSearchOutput {
 
 // Tool definition for OpenAI-compatible function calling
 export interface WebSearchTool {
-  type: 'function' | 'web_search_20250305'
+  type: 'function'
   function: {
     name: 'web_search'
     description: string
@@ -65,12 +65,12 @@ export interface WebSearchTool {
           type: 'string'
           description: string
         }
-        engine: {
+        engine?: {
           type: 'string'
           enum: SearchEngineKind[]
           description: string
         }
-        topK: {
+        topK?: {
           type: 'number'
           minimum: number
           maximum: number
@@ -95,7 +95,7 @@ export function shouldSearch(utterance: string): boolean {
 // Create web search tool definition
 export function createWebSearchTool(): WebSearchTool {
   return {
-    type: 'web_search_20250305',
+    type: 'function',
     function: {
       name: 'web_search',
       description: 'Search the web for current information and real-time data. USE THIS FUNCTION WHEN THE USER ASKS ABOUT RECENT EVENTS, CURRENT INFORMATION, OR FACTS THAT MAY HAVE CHANGED. This includes latest news, current prices, recent releases, updated information, etc. When using search results in your response, ALWAYS cite your sources. Format citations as numbered references like [1](url)',
@@ -106,11 +106,16 @@ export function createWebSearchTool(): WebSearchTool {
             type: 'string',
             description: 'The search query to find information about. Make this specific and focused on the user\'s question.'
           },
+          engine: {
+            type: 'string',
+            enum: ['tavily', 'google', 'bing', 'duckduckgo', 'brave'],
+            description: 'Search engine to use (optional, defaults to configured engine)'
+          },
           topK: {
             type: 'number',
             minimum: 1,
             maximum: 10,
-            description: 'Number of search results to return'
+            description: 'Number of search results to return (default: 5)'
           }
         },
         required: ['query']

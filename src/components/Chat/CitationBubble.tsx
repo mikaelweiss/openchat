@@ -1,5 +1,5 @@
 import React from 'react'
-import { ExternalLink, Sparkles } from 'lucide-react'
+import { ExternalLink } from 'lucide-react'
 import { openUrl } from '@tauri-apps/plugin-opener'
 
 interface CitationBubbleProps {
