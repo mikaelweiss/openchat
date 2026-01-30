@@ -1,6 +1,7 @@
 import { type CreateMessageInput, messageStore } from '../shared/messageStore'
 import { functionCallingService } from './functionCallingService'
 import { tokenService } from './tokenService'
+import { convertToolsToAnthropicFormat } from '../types/search'
 
 interface OpenAIMessage {
   role: 'system' | 'user' | 'assistant' | 'tool'
@@ -370,14 +371,34 @@ class ChatService {
     // Build request payload based on provider
     // Note: Anthropic doesn't allow both temperature and top_p together,
     // so we only send top_p if temperature is not specified
+    const anthropicTools = modelConfig.tools ? convertToolsToAnthropicFormat(modelConfig.tools) : undefined
+
+    // For Anthropic, extract system messages and pass as top-level parameter
+    let anthropicMessages = messages
+    let anthropicSystemPrompt: string | undefined
+    if (isAnthropic) {
+      // Filter out system messages and extract their content
+      const systemMessages = messages.filter(m => m.role === 'system')
+      anthropicMessages = messages.filter(m => m.role !== 'system')
+
+      // Combine all system message content
+      if (systemMessages.length > 0) {
+        anthropicSystemPrompt = systemMessages
+          .map(m => typeof m.content === 'string' ? m.content : '')
+          .filter(Boolean)
+          .join('\n\n')
+      }
+    }
+
     const requestPayload = isAnthropic ? {
       model: modelConfig.model,
-      messages,
+      messages: anthropicMessages,
       stream: !!onStreamChunk,
       max_tokens: modelConfig.maxTokens || 1024,
+      ...(anthropicSystemPrompt && { system: anthropicSystemPrompt }),
       ...(modelConfig.temperature !== undefined && { temperature: modelConfig.temperature }),
       ...(modelConfig.topP !== undefined && { top_p: modelConfig.topP }),
-      ...(modelConfig.tools && modelConfig.tools.length > 0 && { tools: modelConfig.tools }),
+      ...(anthropicTools && anthropicTools.length > 0 && { tools: anthropicTools }),
     } : {
       model: modelConfig.model,
       messages,

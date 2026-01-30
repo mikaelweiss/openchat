@@ -1,5 +1,6 @@
 import { toolService } from './toolService'
 import { type CreateMessageInput } from '../shared/messageStore'
+import { convertToolsToAnthropicFormat } from '../types/search'
 
 interface OpenAIMessage {
   role: 'system' | 'user' | 'assistant' | 'tool'
@@ -86,7 +87,7 @@ class FunctionCallingService {
       // Check if the response contains tool calls
       if (response.tool_calls && response.tool_calls.length > 0) {
         toolCallCount++
-        
+
         // Add assistant message with tool calls
         currentMessages.push({
           role: 'assistant',
@@ -119,29 +120,15 @@ class FunctionCallingService {
 
         console.log('Tool results:', toolResults)
 
-        // Add tool results to messages (format depends on provider)
-        const isAnthropic = modelConfig.endpoint.includes('anthropic.com')
-
-        if (isAnthropic) {
-          // Anthropic: tool results must be user messages with tool_result blocks
+        // Add tool results to messages in OpenAI format
+        // The conversion to provider-specific format happens in callModel()
+        for (const result of toolResults) {
           currentMessages.push({
-            role: 'user',
-            content: toolResults.map(result => ({
-              type: 'tool_result',
-              tool_use_id: result.tool_call_id,
-              content: result.content
-            })) as any
+            role: 'tool',
+            content: result.content,
+            tool_call_id: result.tool_call_id,
+            name: result.name
           })
-        } else {
-          // OpenAI/others: standard tool role messages
-          for (const result of toolResults) {
-            currentMessages.push({
-              role: 'tool',
-              content: result.content,
-              tool_call_id: result.tool_call_id,
-              name: result.name
-            })
-          }
         }
 
         console.log('Messages after tool execution:', currentMessages.slice(-3)) // Show last 3 messages
@@ -155,6 +142,22 @@ class FunctionCallingService {
           onStreamChunk(finalContent)
         }
         break
+      }
+    }
+
+    // If we exited the loop due to hitting max tool calls without getting a final response,
+    // make one final call to get the model's answer (without allowing more tool calls)
+    if (!finalContent && toolCallCount >= maxToolCalls) {
+      console.log('Hit max tool calls, requesting final response without tools')
+      const configWithoutTools = { ...modelConfig, tools: undefined }
+      const finalResponse = await this.callModel({
+        messages: currentMessages,
+        modelConfig: configWithoutTools,
+        signal
+      })
+      finalContent = finalResponse.content || ''
+      if (onStreamChunk && finalContent) {
+        onStreamChunk(finalContent)
       }
     }
 
@@ -215,6 +218,11 @@ class FunctionCallingService {
 
       // Regular text messages
       if (typeof msg.content === 'string') {
+        // Skip messages with empty content (Anthropic rejects them)
+        if (!msg.content.trim()) {
+          return null as any // Will be filtered out
+        }
+
         // Anthropic doesn't support system role in messages array
         // System prompts should be sent via the 'system' parameter
         return {
@@ -240,12 +248,10 @@ class FunctionCallingService {
         }
       }
 
-      // Fallback
-      return {
-        role: 'user' as const,
-        content: [{ type: 'text', text: '' }]
-      }
-    })
+      // Fallback - return null to filter out invalid messages
+      console.warn('Unhandled message format in Anthropic conversion:', msg)
+      return null as any
+    }).filter(msg => msg !== null) // Remove null entries
   }
 
   /**
@@ -275,17 +281,27 @@ class FunctionCallingService {
     // Convert messages to provider-specific format
     let apiMessages: any = messages
     let anthropicTools: any[] | undefined
+    let anthropicSystemPrompt: string | undefined
 
     if (isAnthropic) {
-      apiMessages = this.convertToAnthropicMessages(messages)
+      // Extract system messages before conversion
+      const systemMessages = messages.filter(m => m.role === 'system')
+      const nonSystemMessages = messages.filter(m => m.role !== 'system')
 
-      // Convert tools to Anthropic format (use input_schema instead of parameters)
+      // Combine all system message content
+      if (systemMessages.length > 0) {
+        anthropicSystemPrompt = systemMessages
+          .map(m => typeof m.content === 'string' ? m.content : '')
+          .filter(Boolean)
+          .join('\n\n')
+      }
+
+      apiMessages = this.convertToAnthropicMessages(nonSystemMessages)
+
+      // Convert tools to Anthropic format using the proper conversion function
+      // This handles web_search tools specially (native Anthropic format)
       if (modelConfig.tools && modelConfig.tools.length > 0) {
-        anthropicTools = modelConfig.tools.map(tool => ({
-          name: tool.function.name,
-          description: tool.function.description,
-          input_schema: tool.function.parameters
-        }))
+        anthropicTools = convertToolsToAnthropicFormat(modelConfig.tools)
       }
     }
 
@@ -295,9 +311,13 @@ class FunctionCallingService {
       messages: apiMessages,
       stream: false, // Function calling is easier with non-streaming for now
       max_tokens: modelConfig.maxTokens || 1024,
+      ...(anthropicSystemPrompt && { system: anthropicSystemPrompt }),
       ...(modelConfig.temperature !== undefined && { temperature: modelConfig.temperature }),
       ...(modelConfig.topP !== undefined && { top_p: modelConfig.topP }),
-      ...(anthropicTools && anthropicTools.length > 0 && { tools: anthropicTools }),
+      ...(anthropicTools && anthropicTools.length > 0 && {
+        tools: anthropicTools,
+        tool_choice: { type: "any" } // Force model to use at least one tool when tools are provided
+      }),
     } : {
       model: modelConfig.model,
       messages: apiMessages,
@@ -305,7 +325,10 @@ class FunctionCallingService {
       ...(modelConfig.temperature !== undefined && { temperature: modelConfig.temperature }),
       ...(modelConfig.maxTokens !== undefined && { max_tokens: modelConfig.maxTokens }),
       ...(modelConfig.topP !== undefined && { top_p: modelConfig.topP }),
-      ...(modelConfig.tools && modelConfig.tools.length > 0 && { tools: modelConfig.tools }),
+      ...(modelConfig.tools && modelConfig.tools.length > 0 && {
+        tools: modelConfig.tools,
+        tool_choice: "required" // OpenAI format: force tool usage
+      }),
     }
 
     // Build headers

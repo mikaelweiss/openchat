@@ -82,6 +82,30 @@ export interface WebSearchTool {
   }
 }
 
+// Anthropic native web search tool format
+export interface AnthropicWebSearchTool {
+  type: 'web_search_20250305'
+  name: string
+}
+
+// Convert OpenAI-style function tools to Anthropic's custom tool format
+// This ensures our custom search implementation gets called instead of Anthropic's native search
+export function convertToolsToAnthropicFormat(tools: any[]): any[] {
+  return tools.map(tool => {
+    // OpenAI format has type: 'function' with nested function object
+    // Anthropic format is flat with input_schema instead of parameters
+    if (tool.type === 'function' && tool.function) {
+      return {
+        name: tool.function.name,
+        description: tool.function.description,
+        input_schema: tool.function.parameters // Anthropic uses "input_schema" not "parameters"
+      }
+    }
+    // If already in correct format, return as-is
+    return tool
+  })
+}
+
 // Intent detection
 export function shouldSearch(utterance: string): boolean {
   const q = utterance.toLowerCase()
