@@ -58,25 +58,63 @@ interface ModelConfig {
 
 class FunctionCallingService {
   /**
-   * Convert reference-style citations to inline citations
-   * Extracts URLs from tool results and replaces [text][number] with [number](url)
+   * Normalize weird AI citation formats to standard format
+   * Handles:
+   * - Multiple URLs: [1](url1)(url2) -> [1](url1)
+   * - Reference with URL: [text][1](url) -> text[1](url)
+   * - Loose URLs: [1] some text (url) -> [1](url)
    */
-  private convertReferenceCitationsToInline(content: string, searchResults: Map<number, string>): string {
-    if (searchResults.size === 0) return content
+  private normalizeCitationFormats(content: string, searchResults: Map<number, string>): string {
+    let processed = content
 
-    // Replace reference-style citations [text][number] with text[number](url)
+    // Fix 1: Convert [text][number](url) to text[number](url)
+    processed = processed.replace(
+      /\[([^\]]+)\]\[(\d+)\]\((https?:\/\/[^\s)]+)\)/g,
+      (_match, text, num, url) => {
+        return `${text}[${num}](${url})`
+      }
+    )
+
+    // Fix 2: Normalize multiple URLs [1](url1)(url2) -> [1](url1)
+    // Keep only the first URL for each citation
+    processed = processed.replace(
+      /\[(\d+)\]((?:\((https?:\/\/[^\s)]*)\))+)/g,
+      (_match, num, _allParens, firstUrl) => {
+        if (firstUrl) {
+          return `[${num}](${firstUrl})`
+        }
+        return _match
+      }
+    )
+
+    // Fix 3: Handle loose URLs that appear after citation markers
+    // Pattern: [1] some text (url) -> [1](url) some text
+    // We look for [number] followed eventually by (url) on the same line
+    processed = processed.replace(
+      /\[(\d+)\]([^\n]*?)\((https?:\/\/[^\s)]+)\)/g,
+      (_match, num, middle, url) => {
+        // If there's just whitespace or nothing between, keep it simple
+        if (middle.trim() === '' || /^\s+$/.test(middle)) {
+          return `[${num}](${url})${middle}`
+        }
+        // If there's text, move the URL to the citation
+        return `[${num}](${url})${middle}`
+      }
+    )
+
+    // Fix 4: Convert reference-style citations [text][number] to text[number](url)
     // This preserves the readable text and makes the citation number clickable
-    let processed = content.replace(/\[([^\]]+)\]\[(\d+)\]/g, (match, text, num) => {
+    processed = processed.replace(/\[([^\]]+)\]\[(\d+)\](?!\()/g, (_match, text, num) => {
       const number = parseInt(num)
       const url = searchResults.get(number)
       if (url) {
         return `${text}[${number}](${url})`
       }
-      return match // Leave unchanged if no URL found
+      return _match // Leave unchanged if no URL found
     })
 
-    // Remove orphaned reference definitions at the end (just numbers on their own lines)
-    processed = processed.replace(/\n\n(\d+)\n(\d+)\n(\d+)[\n\d]*$/g, '')
+    // Fix 5: Remove orphaned reference definitions at the end (just numbers on their own lines)
+    processed = processed.replace(/\n\n\d+\n\d+\n\d+[\n\d]*$/g, '')
 
     return processed
   }
@@ -201,9 +239,9 @@ class FunctionCallingService {
       }
     }
 
-    // Post-process content to fix reference-style citations
+    // Post-process content to normalize weird citation formats
     if (searchResultUrls.size > 0 && finalContent) {
-      finalContent = this.convertReferenceCitationsToInline(finalContent, searchResultUrls)
+      finalContent = this.normalizeCitationFormats(finalContent, searchResultUrls)
     }
 
     // Return the final assistant message
