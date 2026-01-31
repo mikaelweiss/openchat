@@ -322,6 +322,7 @@ class FunctionCallingService {
     }> 
   }> {
     const isAnthropic = modelConfig.endpoint.includes('anthropic.com')
+    const isGemini = modelConfig.endpoint.includes('generativelanguage.googleapis.com')
 
     // Convert messages to provider-specific format
     let apiMessages: any = messages
@@ -372,7 +373,8 @@ class FunctionCallingService {
       ...(modelConfig.topP !== undefined && { top_p: modelConfig.topP }),
       ...(modelConfig.tools && modelConfig.tools.length > 0 && {
         tools: modelConfig.tools,
-        tool_choice: "required" // OpenAI format: force tool usage
+        // Only add tool_choice for OpenAI (Gemini doesn't support this parameter)
+        ...(!isGemini && { tool_choice: "required" })
       }),
     }
 
