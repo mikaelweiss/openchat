@@ -1,5 +1,6 @@
 mod ollama;
 mod system_info;
+mod search;
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -218,7 +219,8 @@ pub fn run() {
             ollama::stop_ollama,
             ollama::discover_models,
             system_info::get_system_info,
-            system_info::validate_model_system_compatibility
+            system_info::validate_model_system_compatibility,
+            search::tool_web_search
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

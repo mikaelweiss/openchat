@@ -95,6 +95,7 @@
     --gradient-start: 169 100% 37%; /* Logo color */
     --gradient-end: 259 100% 65%; /* Purple accent */
     --shadow: 222 84% 4.9% / 0.3; /* Enhanced shadows */
+    --citation-background: 220 13% 18%; /* Lighter gray for dark mode citations */
   }
 }
 
@@ -585,6 +586,199 @@ a,
 /* Backdrop blur for better glass effects */
 .backdrop-blur-strong {
   backdrop-filter: blur(12px);
+}
+
+/* ✨ ENHANCED CITATION STYLES ✨ */
+
+.citation-inline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 6px;
+  border-radius: 12px;
+  background-color: hsl(var(--citation-background, var(--muted)));
+  color: hsl(var(--foreground));
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  transition: all 0.2s ease-in-out;
+  margin: 0 2px;
+}
+
+.citation-inline:hover {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  transform: scale(1.05);
+}
+
+.citation-inline:active {
+  transform: translateY(0) scale(0.95);
+  transition: transform 0.1s ease;
+}
+
+/* Source citations - elegant glassmorphism cards */
+.citation-source {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: hsl(var(--card) / 0.6);
+  border: 1px solid hsl(var(--border) / 0.6);
+  backdrop-filter: blur(10px);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow:
+    0 2px 12px hsl(var(--shadow)),
+    inset 0 1px 0 hsl(var(--background) / 0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+.citation-source::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, hsl(var(--primary) / 0.05), hsl(var(--accent) / 0.05));
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.citation-source:hover::before {
+  opacity: 1;
+}
+
+.citation-source:hover {
+  border-color: hsl(var(--primary) / 0.4);
+  transform: translateY(-2px);
+  box-shadow:
+    0 8px 24px hsl(var(--shadow)),
+    0 0 0 1px hsl(var(--primary) / 0.1),
+    inset 0 1px 0 hsl(var(--background) / 0.2);
+}
+
+.citation-source:active {
+  transform: translateY(-1px);
+  transition: transform 0.1s ease;
+}
+
+.citation-source-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  box-shadow:
+    0 2px 8px hsl(var(--primary) / 0.3),
+    inset 0 1px 0 rgba(255,255,255,0.2);
+  transition: all 0.3s ease;
+}
+
+.citation-source:hover .citation-source-number {
+  transform: scale(1.1);
+  box-shadow:
+    0 4px 16px hsl(var(--primary) / 0.4),
+    inset 0 1px 0 rgba(255,255,255,0.3);
+}
+
+.citation-source-text {
+  font-size: 12px;
+  font-weight: 500;
+  color: hsl(var(--foreground) / 0.8);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color 0.3s ease;
+}
+
+.citation-source:hover .citation-source-text {
+  color: hsl(var(--foreground));
+}
+
+.citation-source-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  background: hsl(var(--muted) / 0.5);
+  color: hsl(var(--muted-foreground));
+  transition: all 0.3s ease;
+  opacity: 0.6;
+}
+
+.citation-source:hover .citation-source-icon {
+  background: hsl(var(--primary) / 0.1);
+  color: hsl(var(--primary));
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+/* Citation list container */
+.citation-list {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid hsl(var(--border) / 0.3);
+  background: linear-gradient(135deg, hsl(var(--muted) / 0.02), hsl(var(--accent) / 0.02));
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.citation-list-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+/* Responsive design for smaller screens */
+@media (max-width: 640px) {
+  .citation-source {
+    padding: 6px 10px;
+    gap: 6px;
+  }
+
+  .citation-source-number {
+    width: 20px;
+    height: 20px;
+    font-size: 10px;
+  }
+
+  .citation-source-text {
+    font-size: 11px;
+  }
+
+  .citation-list-grid {
+    gap: 6px;
+  }
+}
+
+/* Elegant animation for citation appearance */
+@keyframes citation-appear {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.citation-inline,
+.citation-source {
+  animation: citation-appear 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 /* Shimmer effect for loading text */

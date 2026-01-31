@@ -5,13 +5,14 @@ import clsx from 'clsx'
 import AboutSettings from './AboutSettings'
 import SegmentedControl from './SegmentedControl'
 import LocalProviderSettings from './LocalProviderSettings'
+import SearchSettings from './SearchSettings'
 import { useSettings } from '../../hooks/useSettings'
 import { Provider, ProviderPreset, ModelCapabilities } from '../../types/provider'
 
 interface SettingsModalProps {
   isOpen: boolean
   onClose: () => void
-  initialSection?: 'general' | 'models' | 'about'
+  initialSection?: 'general' | 'models' | 'search' | 'about'
 }
 
 interface ModelCapabilityIconsProps {
@@ -139,7 +140,7 @@ function ModelCapabilityIcons({
 }
 
 export default function SettingsModal({ isOpen, onClose, initialSection = 'general' }: SettingsModalProps) {
-  const [activeTab, setActiveTab] = useState(initialSection)
+  const [activeTab, setActiveTab] = useState<'general' | 'models' | 'search' | 'about'>(initialSection || 'general')
   
   // Update active tab when initialSection changes
   useEffect(() => {
@@ -183,6 +184,7 @@ export default function SettingsModal({ isOpen, onClose, initialSection = 'gener
   const tabs = [
     { id: 'general', label: 'General' },
     { id: 'models', label: 'Models' },
+    { id: 'search', label: 'Search' },
     { id: 'about', label: 'About' },
   ]
 
@@ -213,7 +215,7 @@ export default function SettingsModal({ isOpen, onClose, initialSection = 'gener
             {tabs.map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as 'general' | 'models' | 'about')}
+                onClick={() => setActiveTab(tab.id as 'general' | 'models' | 'search' | 'about')}
                 className={clsx(
                   'w-full text-left px-3 py-2 my-1 rounded-lg transition-colors',
                   activeTab === tab.id
@@ -230,6 +232,7 @@ export default function SettingsModal({ isOpen, onClose, initialSection = 'gener
           <div className="flex-1 p-6 overflow-y-auto min-h-0">
             {activeTab === 'general' && <GeneralSettings theme={theme} setTheme={handleThemeChange} sendKey={sendKey} setSendKey={handleSendKeyChange} showPricing={showPricing} setShowPricing={handleShowPricingChange} showConversationSettings={showConversationSettings} setShowConversationSettings={handleShowConversationSettingsChange} globalHotkey={globalHotkey} setGlobalHotkey={handleGlobalHotkeyChange} onRestartOnboarding={handleRestartOnboarding} titleGenerationModel={titleGenerationModel} setTitleGenerationModel={handleTitleGenerationModelChange} providers={providers} />}
             {activeTab === 'models' && <ModelsSettings providers={providers} onToggleModel={handleToggleModel} onCapabilityToggle={handleCapabilityToggle} onAddProvider={async (name, endpoint, apiKey, isLocal) => await addProvider({ name, endpoint, apiKey, isLocal })} onUpdateProvider={async (providerId, updates) => await updateProvider(providerId, updates)} onRemoveProvider={removeProvider} onRefreshModels={refreshProviderModels} />}
+            {activeTab === 'search' && <SearchSettings />}
             {activeTab === 'about' && <AboutSettings />}
           </div>
         </div>

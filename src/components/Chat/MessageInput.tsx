@@ -1,5 +1,5 @@
 import { useRef, useEffect, forwardRef, useImperativeHandle, useState, useMemo } from 'react'
-import { ArrowUp, Paperclip, Square, Zap, DollarSign, X, FileText, Image, Volume2, Settings, Brain } from 'lucide-react'
+import { ArrowUp, Paperclip, Square, Zap, DollarSign, X, FileText, Image, Volume2, Settings, Brain, Globe } from 'lucide-react'
 import clsx from 'clsx'
 import { useSettings } from '../../hooks/useSettings'
 import { open } from '@tauri-apps/plugin-dialog'
@@ -15,7 +15,7 @@ interface FileAttachment {
 }
 
 interface MessageInputProps {
-  onSend: (message: string, attachments?: Array<{path: string, base64: string, mimeType: string, name: string, type: 'image' | 'audio' | 'file'}>, reasoningEffort?: 'none' | 'low' | 'medium' | 'high') => void
+  onSend: (message: string, attachments?: Array<{path: string, base64: string, mimeType: string, name: string, type: 'image' | 'audio' | 'file'}>, reasoningEffort?: 'none' | 'low' | 'medium' | 'high', enableSearch?: boolean) => void
   onCancel?: () => void
   disabled?: boolean
   isLoading?: boolean
@@ -44,6 +44,7 @@ const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(
     const [attachments, setAttachments] = useState<FileAttachment[]>([])
     const [reasoningEffort, setReasoningEffort] = useState<'none' | 'low' | 'medium' | 'high'>('none')
     const [isReasoningDropdownOpen, setIsReasoningDropdownOpen] = useState(false)
+    const [searchEnabled, setSearchEnabled] = useState(false)
     
     // Array of 25 different placeholder text presets
     const placeholderTexts = [
@@ -372,11 +373,12 @@ const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(
       if (isLoading) {
         onCancel?.()
       } else {
-        console.log('Sending message:', message, attachments, 'reasoning effort:', reasoningEffort !== 'none' ? reasoningEffort : undefined)
+        console.log('Sending message:', message, attachments, 'reasoning effort:', reasoningEffort, 'search enabled:', searchEnabled)
         onSend(
           message,
           attachments.length > 0 ? attachments : undefined,
-          reasoningEffort !== 'none' ? reasoningEffort : undefined
+          reasoningEffort !== 'none' ? reasoningEffort : undefined,
+          searchEnabled
         )
         setMessage('')
         setAttachments([])
@@ -660,6 +662,23 @@ const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(
                 <Paperclip className="h-4 w-4" />
               </button>
             )}
+            
+            {/* Web search button */}
+            <button
+              onClick={() => setSearchEnabled(!searchEnabled)}
+              className={clsx(
+                'p-2 rounded-xl transition-all duration-200 hover:scale-105',
+                disabled 
+                  ? 'text-muted-foreground cursor-not-allowed' 
+                  : searchEnabled
+                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50'
+                    : 'elegant-hover text-muted-foreground hover:text-blue-600 hover:bg-blue-100 dark:hover:text-blue-400 dark:hover:bg-blue-900/30'
+              )}
+              title={searchEnabled ? "Disable web search for this message" : "Enable web search for this message"}
+              disabled={disabled}
+            >
+              <Globe className="h-4 w-4" />
+            </button>
             
             {/* Reasoning effort button - only show if model supports thinking */}
             {modelCapabilities?.thinking && (

@@ -1,13 +1,25 @@
 import { type CreateMessageInput, messageStore } from '../shared/messageStore'
+import { functionCallingService } from './functionCallingService'
 import { tokenService } from './tokenService'
+import { convertToolsToAnthropicFormat } from '../types/search'
 
 interface OpenAIMessage {
-  role: 'system' | 'user' | 'assistant'
-  content: string | Array<{
+  role: 'system' | 'user' | 'assistant' | 'tool'
+  content?: string | Array<{
     type: 'text' | 'image_url'
     text?: string
     image_url?: { url: string }
   }>
+  tool_calls?: Array<{
+    id: string
+    type: 'function'
+    function: {
+      name: string
+      arguments: string
+    }
+  }>
+  tool_call_id?: string
+  name?: string
 }
 
 
@@ -29,6 +41,14 @@ export interface ModelConfig {
   stop?: string[]
   n?: number
   seed?: number
+  tools?: Array<{
+    type: 'function'
+    function: {
+      name: string
+      description: string
+      parameters: any
+    }
+  }>
 }
 
 export interface SendMessageOptions {
@@ -351,14 +371,34 @@ class ChatService {
     // Build request payload based on provider
     // Note: Anthropic doesn't allow both temperature and top_p together,
     // so we only send top_p if temperature is not specified
+    const anthropicTools = modelConfig.tools ? convertToolsToAnthropicFormat(modelConfig.tools) : undefined
+
+    // For Anthropic, extract system messages and pass as top-level parameter
+    let anthropicMessages = messages
+    let anthropicSystemPrompt: string | undefined
+    if (isAnthropic) {
+      // Filter out system messages and extract their content
+      const systemMessages = messages.filter(m => m.role === 'system')
+      anthropicMessages = messages.filter(m => m.role !== 'system')
+
+      // Combine all system message content
+      if (systemMessages.length > 0) {
+        anthropicSystemPrompt = systemMessages
+          .map(m => typeof m.content === 'string' ? m.content : '')
+          .filter(Boolean)
+          .join('\n\n')
+      }
+    }
+
     const requestPayload = isAnthropic ? {
       model: modelConfig.model,
-      messages,
+      messages: anthropicMessages,
       stream: !!onStreamChunk,
       max_tokens: modelConfig.maxTokens || 1024,
-      ...(modelConfig.temperature !== undefined
-        ? { temperature: modelConfig.temperature }
-        : modelConfig.topP !== undefined && { top_p: modelConfig.topP }),
+      ...(anthropicSystemPrompt && { system: anthropicSystemPrompt }),
+      ...(modelConfig.temperature !== undefined && { temperature: modelConfig.temperature }),
+      ...(modelConfig.topP !== undefined && { top_p: modelConfig.topP }),
+      ...(anthropicTools && anthropicTools.length > 0 && { tools: anthropicTools }),
     } : {
       model: modelConfig.model,
       messages,
@@ -372,6 +412,7 @@ class ChatService {
       ...(modelConfig.n !== undefined && { n: modelConfig.n }),
       ...(modelConfig.seed !== undefined && { seed: modelConfig.seed }),
       ...(modelConfig.reasoningEffort !== undefined && modelConfig.reasoningEffort !== 'none' && { reasoning_effort: modelConfig.reasoningEffort }),
+      ...(modelConfig.tools && modelConfig.tools.length > 0 && { tools: modelConfig.tools }),
     }
 
     // Build headers
@@ -427,6 +468,39 @@ class ChatService {
     }
 
     const processingTime = Date.now() - startTime
+
+    // Check if this request has tools - if so, use function calling service
+    if (modelConfig.tools && modelConfig.tools.length > 0) {
+      console.log('Using function calling service for request with tools')
+      
+      try {
+        const result = await functionCallingService.executeWithFunctionCalling({
+          messages,
+          modelConfig,
+          maxToolCalls: 3,
+          onStreamChunk: onStreamChunk ? (content: string) => onStreamChunk(content, modelId) : undefined,
+          signal
+        })
+        
+        // Update with correct metadata
+        const finalResult = {
+          ...result,
+          processing_time_ms: processingTime,
+          previous_message_id: userMessageId,
+          provider: modelConfig.provider,
+          model: modelConfig.model
+        }
+        
+        if (onStreamComplete) {
+          onStreamComplete(finalResult, modelId)
+        }
+        
+        return finalResult
+      } catch (error) {
+        console.error('Function calling failed, falling back to regular response:', error)
+        // Fall through to regular handling
+      }
+    }
 
     if (requestPayload.stream) {
       return this.handleStreamResponse(response, {

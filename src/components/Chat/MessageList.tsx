@@ -8,9 +8,10 @@ import clsx from 'clsx'
 import React, { useState, useEffect } from 'react'
 import { type Message } from '../../shared/messageStore'
 import { useSettings } from '../../hooks/useSettings'
-import Lottie from 'lottie-react'
+import { Player } from '@lottiefiles/react-lottie-player'
 import spinnerAnimation from '../../assets/spinner.json'
 import EmptyState from '../EmptyState/EmptyState'
+import { CitationBubble, CitationList } from './CitationBubble'
 
 interface MessageListProps {
   messages?: Message[]
@@ -238,6 +239,97 @@ export default function MessageList({ messages = [], isLoading = false, streamin
     return () => clearInterval(interval)
   }, [isLoading])
   
+  const extractCitations = (text: string) => {
+    const citationMap = new Map<number, { number: number, url: string, domain?: string }>()
+    const citationRegex = /\[(\d+)\]\((https?:\/\/[^\s)]+)\)/g
+    const xmlCitationRegex = /<citation number="(\d+)" url="(https?:\/\/[^\s"]+)"( domain="([^"]+)")?\/>/g
+    const simpleCitationRegex = /\[(\d+)\]/g
+    
+    // Handle markdown citations [1](url)
+    let match
+    while ((match = citationRegex.exec(text)) !== null) {
+      const citation = {
+        number: parseInt(match[1]),
+        url: match[2],
+        domain: new URL(match[2]).hostname.replace(/^www\./, '')
+      }
+      citationMap.set(citation.number, citation)
+    }
+    
+    // Handle XML citations
+    while ((match = xmlCitationRegex.exec(text)) !== null) {
+      const citation = {
+        number: parseInt(match[1]),
+        url: match[2],
+        domain: match[4] || new URL(match[2]).hostname.replace(/^www\./, '')
+      }
+      citationMap.set(citation.number, citation)
+    }
+    
+    // Handle simple citations [1] by mapping to search results
+    const numbers = new Set<number>()
+    while ((match = simpleCitationRegex.exec(text)) !== null) {
+      const number = parseInt(match[1])
+      // Only add if not already handled by other formats
+      if (!citationMap.has(number)) {
+        numbers.add(number)
+      }
+    }
+    
+    // Map simple citations to search result URLs
+    // More robust pattern that accounts for any content between Title and URL lines
+    const resultRegex = /\*\*Result (\d+):\*\*\n\*\*Title:\*\* [^\n]*\n\*\*URL:\*\* (https?:\/\/[^\s\n]+)/g
+    while ((match = resultRegex.exec(text)) !== null) {
+      const number = parseInt(match[1])
+      if (numbers.has(number)) {
+        const url = match[2]
+        const citation = {
+          number,
+          url,
+          domain: new URL(url).hostname.replace(/^www\./, '')
+        }
+        citationMap.set(number, citation)
+      }
+    }
+    
+    // Fallback: if we still have unmapped simple citations, extract all URLs from the search results section
+    if (numbers.size > 0 && citationMap.size < numbers.size) {
+      // Look for the search results section
+      const resultsSectionMatch = text.match(/Found \d+ search result.*?:\n\n(.*?)\n---\n/s);
+      if (resultsSectionMatch) {
+        const resultsSection = resultsSectionMatch[1];
+        // Extract all URLs from result blocks
+        const urlPattern = /\*\*Result (\d+):\*\*\n\*\*Title:\*\* [^\n]*\n\*\*URL:\*\* (https?:\/\/[^\s\n]+)/g;
+        const urlMatches: { number: number; url: string }[] = [];
+        let urlMatch;
+        while ((urlMatch = urlPattern.exec(resultsSection)) !== null) {
+          urlMatches.push({
+            number: parseInt(urlMatch[1]),
+            url: urlMatch[2]
+          });
+        }
+        
+        // Map any remaining simple citations
+        for (const number of numbers) {
+          if (!citationMap.has(number)) {
+            const urlMatch = urlMatches.find(m => m.number === number);
+            if (urlMatch) {
+              const citation = {
+                number,
+                url: urlMatch.url,
+                domain: new URL(urlMatch.url).hostname.replace(/^www\./, '')
+              }
+              citationMap.set(number, citation);
+            }
+          }
+        }
+      }
+    }
+    
+    // Convert map to array and sort by number
+    return Array.from(citationMap.values()).sort((a, b) => a.number - b.number)
+  }
+
   const markdownComponents = {
     code: ({ inline, className, children }: any) => {
       // Force inline rendering for short code snippets without newlines
@@ -257,6 +349,218 @@ export default function MessageList({ messages = [], isLoading = false, streamin
           {String(children).replace(/\n$/, '')}
         </CodeBlock>
       )
+    },
+    
+    // Handle links specially to catch citations
+    a: ({ href, children }: any) => {
+      // Check if this is a citation link
+      const childText = typeof children === 'string' ? children : (children?.props?.children || String(children))
+      const citationMatch = /^\[?(\d+)\]?$/.exec(childText)
+      
+      if (citationMatch && href) {
+        const number = parseInt(citationMatch[1])
+        try {
+          const domain = new URL(href).hostname.replace(/^www\./, '')
+          return (
+            <CitationBubble
+              key={`citation-link-${number}`}
+              number={number}
+              url={href}
+              domain={domain}
+              isInline
+            />
+          )
+        } catch {
+          // Fallback if URL parsing fails
+          return (
+            <CitationBubble
+              key={`citation-link-${number}`}
+              number={number}
+              url={href}
+              isInline
+            />
+          )
+        }
+      }
+      
+      // Regular link
+      return (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-primary hover:text-primary/80 underline underline-offset-2 transition-colors duration-200"
+        >
+          {children}
+        </a>
+      )
+    },
+    
+    text: ({ children }: any) => {
+      // Ensure children is a string
+      const textContent = typeof children === 'string' ? children : String(children)
+      const parts: React.ReactNode[] = []
+      let lastIndex = 0
+      
+      // Handle XML citations, simple citations, and multi-citations
+      const xmlRegex = /<citation number="(\d+)" url="(https?:\/\/[^\s"]+)"( domain="([^"]+)")?\/>/g
+      const simpleCitationRegex = /\[(\d+)\](?!\()/g // Simple [1] not followed by (
+      const multiCitationRegex = /\[(\d+(?:\s*,\s*\d+)*)\]/g // [1, 2, 3] format
+      
+      // Get the full message text to search for results
+      const fullMessageText = textContent
+      
+      // Helper function to find URL for a citation number
+      const findUrlForCitation = (number: number): { url?: string, domain?: string } => {
+        // More robust pattern that accounts for any content between Title and URL lines
+        const resultRegex = new RegExp(`\\*\\*Result ${number}:\\*\\*\\n\\*\\*Title:\\*\\* [^\\n]*\\n\\*\\*URL:\\*\\* (https?:\\/\\/[^\\s\\n]+)`, 'g')
+        const resultMatch = resultRegex.exec(fullMessageText)
+        if (resultMatch) {
+          const url = resultMatch[1]
+          try {
+            return {
+              url,
+              domain: new URL(url).hostname.replace(/^www\./, '')
+            }
+          } catch {
+            return { url }
+          }
+        }
+        
+        // Fallback: look for the search results section and extract all URLs
+        const resultsSectionMatch = fullMessageText.match(/Found \d+ search result.*?:\n\n(.*?)\n---\n/s)
+        if (resultsSectionMatch) {
+          const resultsSection = resultsSectionMatch[1]
+          // Extract all URLs from result blocks
+          const urlPattern = new RegExp(`\\*\\*Result ${number}:\\*\\*\\n\\*\\*Title:\\*\\* [^\\n]*\\n\\*\\*URL:\\*\\* (https?:\\/\\/[^\\s\\n]+)`, 'g')
+          const urlMatch = urlPattern.exec(resultsSection)
+          if (urlMatch) {
+            const url = urlMatch[1]
+            try {
+              return {
+                url,
+                domain: new URL(url).hostname.replace(/^www\./, '')
+              }
+            } catch {
+              return { url }
+            }
+          }
+        }
+        
+        return {}
+      }
+      
+      // Collect all citation matches with their positions
+      const allMatches: Array<{
+        index: number,
+        length: number,
+        type: 'xml' | 'simple' | 'multi',
+        numbers?: number[],
+        number?: number,
+        url?: string,
+        domain?: string
+      }> = []
+      
+      // Find XML citations
+      let match: RegExpExecArray | null
+      while ((match = xmlRegex.exec(textContent)) !== null) {
+        allMatches.push({
+          index: match.index,
+          length: match[0].length,
+          type: 'xml',
+          number: parseInt(match[1]),
+          url: match[2],
+          domain: match[4] || new URL(match[2]).hostname.replace(/^www\./, '')
+        })
+      }
+      
+      // Find multi-citations [1, 2, 3]
+      multiCitationRegex.lastIndex = 0
+      while ((match = multiCitationRegex.exec(textContent)) !== null) {
+        const numbers = match[1].split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n))
+        if (numbers.length > 1) {
+          allMatches.push({
+            index: match.index,
+            length: match[0].length,
+            type: 'multi',
+            numbers: numbers
+          })
+        }
+      }
+      
+      // Find simple single citations [1]
+      simpleCitationRegex.lastIndex = 0
+      while ((match = simpleCitationRegex.exec(textContent)) !== null) {
+        // Skip if this is part of a multi-citation we already found
+        const isPartOfMulti = allMatches.some(m => 
+          m.type === 'multi' && 
+          match!.index >= m.index && 
+          match!.index < m.index + m.length
+        )
+        
+        if (!isPartOfMulti) {
+          const number = parseInt(match[1])
+          const { url, domain } = findUrlForCitation(number)
+          
+          allMatches.push({
+            index: match.index,
+            length: match[0].length,
+            type: 'simple',
+            number: number,
+            url,
+            domain
+          })
+        }
+      }
+      
+      // Sort matches by position and process them
+      allMatches.sort((a, b) => a.index - b.index)
+      
+      for (const citation of allMatches) {
+        // Add text before the citation
+        if (citation.index > lastIndex) {
+          parts.push(textContent.slice(lastIndex, citation.index))
+        }
+        
+        if (citation.type === 'multi' && citation.numbers) {
+          // Handle multi-citations [1, 2, 3]
+          parts.push('[')
+          citation.numbers.forEach((number, index) => {
+            if (index > 0) parts.push(', ')
+            const { url, domain } = findUrlForCitation(number)
+            parts.push(
+              <CitationBubble
+                key={`citation-multi-${citation.index}-${number}`}
+                number={number}
+                url={url}
+                domain={domain}
+                isInline
+              />
+            )
+          })
+          parts.push(']')
+        } else {
+          // Handle single citations
+          parts.push(
+            <CitationBubble
+              key={`citation-${citation.type}-${citation.index}`}
+              number={citation.number!}
+              url={citation.url}
+              domain={citation.domain}
+              isInline
+            />
+          )
+        }
+        
+        lastIndex = citation.index + citation.length
+      }
+      
+      // Add remaining text
+      if (lastIndex < textContent.length) {
+        parts.push(textContent.slice(lastIndex))
+      }
+      
+      return <>{parts}</>
     },
     // Enhanced styling for other markdown elements
     h1: ({ children }: any) => (
@@ -351,6 +655,10 @@ export default function MessageList({ messages = [], isLoading = false, streamin
                   >
                     {message.text || ''}
                   </ReactMarkdown>
+                  
+                  {message.role === 'assistant' && (
+                    <CitationList citations={extractCitations(message.text || '')} />
+                  )}
                   
                   <button
                     onClick={() => copyToClipboard(message.text || '', message.id.toString())}
@@ -548,8 +856,8 @@ export default function MessageList({ messages = [], isLoading = false, streamin
                           ) : shouldShowLoading ? (
                             /* Show loading state only for models that haven't started yet */
                             <div className="flex items-center gap-3">
-                              <Lottie
-                                animationData={spinnerAnimation}
+                              <Player
+                                src={spinnerAnimation}
                                 loop
                                 autoplay
                                 style={{ width: 22, height: 22 }}
@@ -657,20 +965,22 @@ export default function MessageList({ messages = [], isLoading = false, streamin
             </div>
             
             <div className="message-bubble-assistant prose prose-sm dark:prose-invert max-w-none break-words selection:bg-primary/20 p-4 rounded-2xl relative group">
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                components={markdownComponents}
-              >
-                {(() => {
-                  if (streamingMessage) {
-                    return streamingMessage
-                  }
-                  if (streamingMessagesByModel && streamingMessagesByModel.size === 1) {
-                    return Array.from(streamingMessagesByModel.values())[0]
-                  }
-                  return ''
-                })()}
-              </ReactMarkdown>
+              {(() => {
+                const content = streamingMessage || 
+                  (streamingMessagesByModel && streamingMessagesByModel.size === 1 ? 
+                   Array.from(streamingMessagesByModel.values())[0] : '')
+                return (
+                  <>
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={markdownComponents}
+                    >
+                      {content}
+                    </ReactMarkdown>
+                    <CitationList citations={extractCitations(content)} />
+                  </>
+                )
+              })()}
               <div className="inline-block w-2 h-4 bg-primary animate-pulse ml-1 rounded-full" />
               
               <button
@@ -707,10 +1017,10 @@ export default function MessageList({ messages = [], isLoading = false, streamin
             <div className="flex items-baseline gap-3">
               <span className="font-semibold text-foreground/95">Assistant</span>
             </div>
-            
+
             <div className="message-bubble-assistant p-4 rounded-2xl flex items-center gap-3">
-              <Lottie
-                animationData={spinnerAnimation}
+              <Player
+                src={spinnerAnimation}
                 loop
                 autoplay
                 style={{ width: 22, height: 22 }}

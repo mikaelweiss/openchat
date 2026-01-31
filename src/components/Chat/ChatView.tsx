@@ -14,6 +14,9 @@ import { type CreateMessageInput } from '../../shared/messageStore'
 import { chatService } from '../../services/chatService'
 import { telemetryService } from '../../services/telemetryService'
 import { ollamaService } from '../../services/ollamaService'
+import { toolService } from '../../services/toolService'
+import { shouldSearch } from '../../types/search'
+import { useSearchStore } from '../../stores/searchStore'
 import clsx from 'clsx'
 import EmptyState from '../EmptyState/EmptyState'
 import { getConversationModelDisplay } from '../../utils/conversationUtils'
@@ -699,7 +702,7 @@ const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(function ChatView({ c
     }
   }
   
-  const handleSend = async (message: string, attachments?: Array<{path: string, base64: string, mimeType: string, name: string, type: 'image' | 'audio' | 'file'}>, reasoningEffort?: 'none' | 'low' | 'medium' | 'high') => {
+  const handleSend = async (message: string, attachments?: Array<{path: string, base64: string, mimeType: string, name: string, type: 'image' | 'audio' | 'file'}>, reasoningEffort?: 'none' | 'low' | 'medium' | 'high', enableSearch?: boolean) => {
     if (!conversationId || !message.trim()) return
     
     // Get effective provider and model (prefer conversation, fallback to selected)
@@ -822,6 +825,19 @@ const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(function ChatView({ c
       // Track message sent event
       telemetryService.trackMessageSent(effectiveProvider, effectiveModel, message.length)
       
+      // Determine if tools should be enabled
+      const searchStore = useSearchStore.getState()
+      const shouldEnableSearch = enableSearch || (searchStore.settings.autoDetectNeeded && shouldSearch(message))
+      let availableTools: any[] = []
+      
+      if (shouldEnableSearch) {
+        try {
+          availableTools = await toolService.getAvailableTools()
+        } catch (error) {
+          console.error('Failed to get available tools:', error)
+        }
+      }
+
       // Create model configurations for the new interface
       const modelConfigs = await chatService.createModelConfigs(
         isMultiSelectMode && selectedModels.length > 0
@@ -844,15 +860,43 @@ const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(function ChatView({ c
         }
       )
 
+      // Add tools to model configs if available
+      const currentDate = new Date().toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
+      let effectiveSystemPrompt = currentConversation?.system_prompt || undefined
+      if (availableTools.length > 0) {
+        modelConfigs.forEach(config => {
+          config.tools = availableTools
+        })
+
+        // Enhance system prompt to explicitly instruct the AI to use search when available
+        if (shouldEnableSearch) {
+          const searchInstruction = "You have access to a web search tool. You MUST use the web_search function to find current information before responding. This is especially important for questions about recent events, current information, or facts that may have changed.\n\nWhen using search results in your response:\n1. ALWAYS cite your sources using the format [number](url)\n2. Include all relevant information from the search results\n3. Make it easy for the user to verify information via the provided sources"
+
+          effectiveSystemPrompt = effectiveSystemPrompt
+            ? `${effectiveSystemPrompt}\n\n${searchInstruction}`
+            : searchInstruction
+        }
+      }
+
+      // Always add the current date to the system prompt
+      const dateInstruction = `For your information, the current date is ${currentDate}`;
+      effectiveSystemPrompt = effectiveSystemPrompt
+        ? `${effectiveSystemPrompt}\n\n${dateInstruction}`
+        : dateInstruction;
+
       // Track API performance per model
       const modelStartTimes = new Map<string, number>()
-      
+
       // Send to AI provider(s) with streaming
       await chatService.sendMessage({
         conversationId: activeConversationId,
         userMessage,
         userMessageId: typeof userMessageId === 'number' ? userMessageId : undefined,
-        systemPrompt: currentConversation?.system_prompt || undefined,
+        systemPrompt: effectiveSystemPrompt,
         models: modelConfigs,
         signal: controller.signal,
         onStreamChunk: (content: string, modelId: string) => {
