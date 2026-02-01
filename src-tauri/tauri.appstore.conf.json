@@ -1,0 +1,10 @@
+{
+  "plugins": {
+    "updater": {
+      "active": false
+    }
+  },
+  "bundle": {
+    "createUpdaterArtifacts": false
+  }
+}

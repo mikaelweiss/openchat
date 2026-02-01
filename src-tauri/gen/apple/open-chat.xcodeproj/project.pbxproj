@@ -40,7 +40,7 @@
 		AC1D9E4D7E290ADAB5972E64 /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
 		D23C0E057AF1F8158C05DFB6 /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
 		E275CE39C7EE08F68D859F18 /* ollama.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = ollama.rs; sourceTree = "<group>"; };
-		E9305D0D0E5E8936FF1D7CC5 /* Open Chat by Mike.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Open Chat by Mike.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		E9305D0D0E5E8936FF1D7CC5 /* Open Chat.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Open Chat.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		F131D4B434CEDC3FB5E08244 /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = assets; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
@@ -81,7 +81,7 @@
 		5C7D63DB39FACAF1203C6C45 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				E9305D0D0E5E8936FF1D7CC5 /* Open Chat by Mike.app */,
+				E9305D0D0E5E8936FF1D7CC5 /* Open Chat.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -174,7 +174,7 @@
 			packageProductDependencies = (
 			);
 			productName = "open-chat_iOS";
-			productReference = E9305D0D0E5E8936FF1D7CC5 /* Open Chat by Mike.app */;
+			productReference = E9305D0D0E5E8936FF1D7CC5 /* Open Chat.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -298,9 +298,11 @@
 		385CC46FEFC9162ADBDBC840 /* debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_OBJC_WEAK = YES;
 				CODE_SIGN_ENTITLEMENTS = "open-chat_iOS/open-chat_iOS.entitlements";
-				CURRENT_PROJECT_VERSION = 0.2.2;
+				CURRENT_PROJECT_VERSION = 0.2.3;
+				DEVELOPMENT_TEAM = "976SMHMA6R";
 				ENABLE_BITCODE = NO;
 				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
 				FRAMEWORK_SEARCH_PATHS = (
@@ -332,16 +334,17 @@
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				TARGETED_DEVICE_FAMILY = 1;
 				VALID_ARCHS = arm64;
-				DEVELOPMENT_TEAM = "976SMHMA6R";
 			};
 			name = debug;
 		};
 		88EF8E16D37ECDD57F8F29DE /* release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_OBJC_WEAK = YES;
 				CODE_SIGN_ENTITLEMENTS = "open-chat_iOS/open-chat_iOS.entitlements";
-				CURRENT_PROJECT_VERSION = 0.2.2;
+				CURRENT_PROJECT_VERSION = 0.2.3;
+				DEVELOPMENT_TEAM = "976SMHMA6R";
 				ENABLE_BITCODE = NO;
 				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
 				FRAMEWORK_SEARCH_PATHS = (
@@ -373,7 +376,6 @@
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				TARGETED_DEVICE_FAMILY = 1;
 				VALID_ARCHS = arm64;
-				DEVELOPMENT_TEAM = "976SMHMA6R";
 			};
 			name = release;
 		};

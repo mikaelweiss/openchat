@@ -43,6 +43,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "category": "public.app-category.productivity",
     "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
@@ -54,6 +55,11 @@
     "macOS": {
       "dmg": {
         "background": "./images/dmg-background.png"
+      },
+      "entitlements": "./entitlements.mac.plist",
+      "signingIdentity": "Apple Distribution",
+      "files": {
+        "embedded.provisionprofile": "./Open_Chat.provisionprofile"
       }
     },
     "iOS": {

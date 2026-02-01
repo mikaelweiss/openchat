@@ -7,6 +7,7 @@ import { modelsService } from '../services/modelsService'
 import { useAppStore } from '../stores/appStore'
 import * as windowManager from '../utils/windowManager'
 import { telemetryService } from '../services/telemetryService'
+import { messageSync } from '../utils/messageSync'
 
 export interface AppSettings {
   theme: 'light' | 'dark' | 'system'
@@ -180,9 +181,7 @@ export function useSettings() {
       settingsManager.updateSettings(newSettings)
       
       // Notify other windows about settings changes
-      import('../utils/messageSync').then(({ messageSync }) => {
-        messageSync.notifySettingsUpdate()
-      }).catch(() => {})
+      messageSync.notifySettingsUpdate().catch(() => {})
     } catch (error) {
       console.error(`Failed to update setting ${key}:`, error)
       throw error

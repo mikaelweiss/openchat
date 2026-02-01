@@ -8,13 +8,13 @@
     "build": "tsc && vite build",
     "dev:desktop": "tauri dev",
     "dev:ios": "tauri ios dev",
+    "dev:ios:simulator": "tauri ios dev 'iPhone 17 Pro'",
     "dev:android": "tauri android dev",
     "build:ios": "tauri ios build",
     "build:android": "tauri android build"
   },
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",
-    "@lottiefiles/react-lottie-player": "^3.6.0",
     "@tauri-apps/api": "^2.9.1",
     "@tauri-apps/plugin-dialog": "^2.6.0",
     "@tauri-apps/plugin-fs": "^2.4.5",
@@ -31,6 +31,7 @@
     "lucide-react": "^0.563.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "react-lottie-player": "^2.1.0",
     "react-markdown": "^10.1.0",
     "react-syntax-highlighter": "^16.1.0",
     "remark-gfm": "^4.0.1",

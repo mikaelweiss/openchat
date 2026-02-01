@@ -8,7 +8,7 @@ import clsx from 'clsx'
 import React, { useState, useEffect } from 'react'
 import { type Message } from '../../shared/messageStore'
 import { useSettings } from '../../hooks/useSettings'
-import { Player } from '@lottiefiles/react-lottie-player'
+import Lottie from 'react-lottie-player/dist/LottiePlayerLight'
 import spinnerAnimation from '../../assets/spinner.json'
 import EmptyState from '../EmptyState/EmptyState'
 import { CitationBubble, CitationList } from './CitationBubble'
@@ -856,10 +856,10 @@ export default function MessageList({ messages = [], isLoading = false, streamin
                           ) : shouldShowLoading ? (
                             /* Show loading state only for models that haven't started yet */
                             <div className="flex items-center gap-3">
-                              <Player
-                                src={spinnerAnimation}
+                              <Lottie
+                                animationData={spinnerAnimation}
                                 loop
-                                autoplay
+                                play
                                 style={{ width: 22, height: 22 }}
                               />
                               <span className="text-sm text-foreground/80 shimmer-loading-text font-medium">{loadingMessage}...</span>
@@ -1019,10 +1019,10 @@ export default function MessageList({ messages = [], isLoading = false, streamin
             </div>
 
             <div className="message-bubble-assistant p-4 rounded-2xl flex items-center gap-3">
-              <Player
-                src={spinnerAnimation}
+              <Lottie
+                animationData={spinnerAnimation}
                 loop
-                autoplay
+                play
                 style={{ width: 22, height: 22 }}
               />
               <span className="text-sm text-foreground/80 shimmer-loading-text font-medium">{loadingMessage}...</span>

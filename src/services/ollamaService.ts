@@ -1,4 +1,6 @@
 // Ollama API service for managing local models
+import { invoke } from '@tauri-apps/api/core'
+
 export interface OllamaModel {
   name: string;
   model: string;
@@ -175,7 +177,6 @@ export class OllamaService {
       }
 
       // Try to start Ollama using Tauri command
-      const { invoke } = await import('@tauri-apps/api/core');
       try {
         await invoke('start_ollama');
         
@@ -215,7 +216,6 @@ export class OllamaService {
       }
 
       // Try to stop Ollama using Tauri command
-      const { invoke } = await import('@tauri-apps/api/core');
       try {
         await invoke('stop_ollama');
         

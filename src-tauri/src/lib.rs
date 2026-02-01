@@ -1,5 +1,6 @@
 mod ollama;
 mod system_info;
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod search;
 
 #[tauri::command]

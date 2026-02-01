@@ -6,6 +6,7 @@ import { messageStore, type Message, type CreateMessageInput } from '../shared/m
 import { settings, SETTINGS_KEYS } from '../shared/settingsStore'
 import { type Provider } from '../types/provider'
 import { telemetryService } from '../services/telemetryService'
+import { messageSync } from '../utils/messageSync'
 
 // Pending conversation type (exists only in memory until first message)
 export interface PendingConversation {
@@ -373,9 +374,7 @@ export const useAppStore = create<AppState>()(
           get().resetRetryAttempt(conversationId)
           
           // Notify other windows to reload this conversation's messages
-          import('../utils/messageSync').then(({ messageSync }) => {
-            messageSync.notifyMessageUpdate(conversationId)
-          }).catch(() => {})
+          messageSync.notifyMessageUpdate(conversationId).catch(() => {})
           
           return messageId || 0
         } catch (error) {
