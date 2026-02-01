@@ -1,6 +1,6 @@
 [package]
 name = "open-chat"
-version = "0.2.2"
+version = "0.2.3"
 description = "One interface, any provider."
 authors = ["you"]
 edition = "2021"
