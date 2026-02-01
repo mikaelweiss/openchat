@@ -1,9 +1,11 @@
 import { format } from 'date-fns'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
+import rehypeKatex from 'rehype-katex'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism'
-import { Copy, Check, FileText, Image, Volume2 } from 'lucide-react'
+import { Copy, Check, FileText, Image, Volume2, ChevronDown, ChevronRight, Search } from 'lucide-react'
 import clsx from 'clsx'
 import React, { useState, useEffect } from 'react'
 import { type Message } from '../../shared/messageStore'
@@ -18,6 +20,7 @@ interface MessageListProps {
   isLoading?: boolean
   streamingMessage?: string
   streamingMessagesByModel?: Map<string, string>
+  searchQueries?: Array<{ query: string; timestamp: number }>
   expectedModels?: Array<{provider: string, model: string}>
   scrollContainerRef?: React.RefObject<HTMLDivElement | null>
   onScroll?: (event: React.UIEvent<HTMLDivElement>) => void
@@ -116,8 +119,43 @@ function AttachmentDisplay({ attachments }: { attachments: { type: string; path:
   )
 }
 
+// Component to display search queries in a collapsible dropdown
+function SearchQueriesDropdown({ queries }: { queries: Array<{ query: string; timestamp: number }> }) {
+  const [isOpen, setIsOpen] = useState(true)
 
-export default function MessageList({ messages = [], isLoading = false, streamingMessage = '', streamingMessagesByModel, expectedModels = [], scrollContainerRef, onScroll }: MessageListProps) {
+  if (!queries || queries.length === 0) return null
+
+  return (
+    <div className="mb-3 glass-effect border border-border/20 rounded-xl overflow-hidden shadow-elegant">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full px-4 py-3 flex items-center gap-2 text-left hover:bg-secondary/50 transition-colors duration-200"
+      >
+        {isOpen ? (
+          <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+        ) : (
+          <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+        )}
+        <Search className="h-4 w-4 text-primary flex-shrink-0" />
+        <span className="text-sm font-medium text-foreground">
+          {queries.length} search{queries.length > 1 ? 'es' : ''} performed
+        </span>
+      </button>
+      {isOpen && (
+        <div className="px-4 pb-3 pt-0 space-y-2">
+          {queries.map((item, index) => (
+            <div key={index} className="flex items-start gap-2 text-sm">
+              <span className="text-muted-foreground flex-shrink-0 mt-0.5">{index + 1}.</span>
+              <span className="text-foreground/90 flex-1">{item.query}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default function MessageList({ messages = [], isLoading = false, streamingMessage = '', streamingMessagesByModel, searchQueries = [], expectedModels = [], scrollContainerRef, onScroll }: MessageListProps) {
   const [loadingMessage, setLoadingMessage] = useState('Assembling')
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null)
   const { userName } = useSettings()
@@ -715,7 +753,7 @@ export default function MessageList({ messages = [], isLoading = false, streamin
                     {format(new Date(message.created_at), 'h:mm a')}
                   </span>
                 </div>
-                
+
                 {/* Show file attachments */}
                 <AttachmentDisplay attachments={
                   message.images?.map(img => ({ type: 'image', path: img.file_path || img.url || '', mimeType: img.mime_type || 'image/*' })) ||
@@ -723,13 +761,19 @@ export default function MessageList({ messages = [], isLoading = false, streamin
                   message.files?.map(file => ({ type: 'file', path: file.path, mimeType: file.type })) ||
                   null
                 } />
-                
+
+                {/* Show search queries if this message has them in metadata */}
+                {message.role === 'assistant' && message.metadata?.searchQueries && (
+                  <SearchQueriesDropdown queries={message.metadata.searchQueries} />
+                )}
+
                 <div className={clsx(
                   'prose prose-sm dark:prose-invert max-w-none break-words selection:bg-primary/20 p-4 rounded-2xl relative group',
                   message.role === 'user' ? 'message-bubble-user' : 'message-bubble-assistant'
                 )}>
                   <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
+                    remarkPlugins={[remarkGfm, remarkMath]}
+                    rehypePlugins={[rehypeKatex]}
                     components={markdownComponents}
                   >
                     {message.text || ''}
@@ -802,7 +846,8 @@ export default function MessageList({ messages = [], isLoading = false, streamin
                       </div>
                       <div className="prose prose-sm dark:prose-invert max-w-none break-words selection:bg-primary/20 p-3 pt-2">
                         <ReactMarkdown
-                          remarkPlugins={[remarkGfm]}
+                          remarkPlugins={[remarkGfm, remarkMath]}
+                          rehypePlugins={[rehypeKatex]}
                           components={markdownComponents}
                         >
                           {message.text || ''}
@@ -925,7 +970,8 @@ export default function MessageList({ messages = [], isLoading = false, streamin
                           {isStreaming ? (
                             <>
                               <ReactMarkdown
-                                remarkPlugins={[remarkGfm]}
+                                remarkPlugins={[remarkGfm, remarkMath]}
+                                rehypePlugins={[rehypeKatex]}
                                 components={markdownComponents}
                               >
                                 {streamingContent}
@@ -981,7 +1027,8 @@ export default function MessageList({ messages = [], isLoading = false, streamin
                         </div>
                         <div className="prose prose-sm dark:prose-invert max-w-none break-words selection:bg-primary/20 p-3 pt-2">
                           <ReactMarkdown
-                            remarkPlugins={[remarkGfm]}
+                            remarkPlugins={[remarkGfm, remarkMath]}
+                            rehypePlugins={[rehypeKatex]}
                             components={markdownComponents}
                           >
                             {content}
@@ -999,7 +1046,8 @@ export default function MessageList({ messages = [], isLoading = false, streamin
                 return (
                   <div key={modelId} className="message-bubble-assistant prose prose-sm dark:prose-invert max-w-none break-words selection:bg-primary/20 p-4 rounded-2xl relative group">
                     <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
+                      remarkPlugins={[remarkGfm, remarkMath]}
+                      rehypePlugins={[rehypeKatex]}
                       components={markdownComponents}
                     >
                       {content}
@@ -1030,10 +1078,11 @@ export default function MessageList({ messages = [], isLoading = false, streamin
           </div>
         </div>
       )}
-      
-      {/* Single streaming message display */}
-      {((streamingMessage && (!streamingMessagesByModel || streamingMessagesByModel.size === 0)) || 
-        (streamingMessagesByModel && streamingMessagesByModel.size === 1 && expectedModels.length <= 1)) && (
+
+      {/* Single streaming message display (or just search queries before streaming starts) */}
+      {((streamingMessage && (!streamingMessagesByModel || streamingMessagesByModel.size === 0)) ||
+        (streamingMessagesByModel && streamingMessagesByModel.size === 1 && expectedModels.length <= 1) ||
+        searchQueries.length > 0) && (
         <div className="w-full max-w-[950px] mx-auto elegant-fade-in">
           <div className="space-y-3">
             <div className="flex items-baseline gap-3">
@@ -1042,53 +1091,60 @@ export default function MessageList({ messages = [], isLoading = false, streamin
                 {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
             </div>
-            
-            <div className="message-bubble-assistant prose prose-sm dark:prose-invert max-w-none break-words selection:bg-primary/20 p-4 rounded-2xl relative group">
-              {(() => {
-                const content = streamingMessage || 
-                  (streamingMessagesByModel && streamingMessagesByModel.size === 1 ? 
-                   Array.from(streamingMessagesByModel.values())[0] : '')
-                return (
-                  <>
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      components={markdownComponents}
-                    >
-                      {content}
-                    </ReactMarkdown>
-                    <CitationList citations={extractCitations(content)} />
-                  </>
-                )
-              })()}
-              <div className="inline-block w-2 h-4 bg-primary animate-pulse ml-1 rounded-full" />
-              
-              <button
-                onClick={() => {
-                  const content = streamingMessage || 
-                    (streamingMessagesByModel && streamingMessagesByModel.size === 1 ? 
+
+            {/* Show search queries dropdown if any - appears immediately when searches start */}
+            <SearchQueriesDropdown queries={searchQueries} />
+
+            {/* Show streaming content if available */}
+            {(streamingMessage || (streamingMessagesByModel && streamingMessagesByModel.size === 1)) && (
+              <div className="message-bubble-assistant prose prose-sm dark:prose-invert max-w-none break-words selection:bg-primary/20 p-4 rounded-2xl relative group">
+                {(() => {
+                  const content = streamingMessage ||
+                    (streamingMessagesByModel && streamingMessagesByModel.size === 1 ?
                      Array.from(streamingMessagesByModel.values())[0] : '')
-                  copyToClipboard(content, 'streaming')
-                }}
-                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-all duration-200 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary p-1.5 rounded-lg elegant-hover"
-                title="Copy message"
-              >
-                {copiedMessageId === 'streaming' ? (
-                  <>
-                    <Check className="h-3 w-3" />
-                    Copied
-                  </>
-                ) : (
-                  <>
-                    <Copy className="h-3 w-3" />
-                    Copy
-                  </>
-                )}
-              </button>
-            </div>
+                  return (
+                    <>
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm, remarkMath]}
+                        rehypePlugins={[rehypeKatex]}
+                        components={markdownComponents}
+                      >
+                        {content}
+                      </ReactMarkdown>
+                      <CitationList citations={extractCitations(content)} />
+                    </>
+                  )
+                })()}
+                <div className="inline-block w-2 h-4 bg-primary animate-pulse ml-1 rounded-full" />
+
+                <button
+                  onClick={() => {
+                    const content = streamingMessage ||
+                      (streamingMessagesByModel && streamingMessagesByModel.size === 1 ?
+                       Array.from(streamingMessagesByModel.values())[0] : '')
+                    copyToClipboard(content, 'streaming')
+                  }}
+                  className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-all duration-200 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary p-1.5 rounded-lg elegant-hover"
+                  title="Copy message"
+                >
+                  {copiedMessageId === 'streaming' ? (
+                    <>
+                      <Check className="h-3 w-3" />
+                      Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-3 w-3" />
+                      Copy
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
-      
+
       {/* Loading indicator - show when loading and no streaming started yet, but hide in multi-model mode */}
       {isLoading && !streamingMessage && (!streamingMessagesByModel || streamingMessagesByModel.size === 0) && expectedModels.length <= 1 && (
         <div className="w-full max-w-[950px] mx-auto elegant-fade-in">

@@ -61,6 +61,7 @@ export interface SendMessageOptions {
   onStreamComplete?: (assistantMessage: CreateMessageInput, modelId: string) => void
   onModelStreamStart?: (modelId: string) => void
   onModelError?: (error: Error, modelId: string) => void
+  onSearchQuery?: (query: string) => void
   signal?: AbortSignal
 }
 
@@ -148,6 +149,7 @@ class ChatService {
     onStreamComplete,
     onModelStreamStart,
     onModelError,
+    onSearchQuery,
     signal
   }: SendMessageOptions): Promise<CreateMessageInput[]> {
     const startTime = Date.now()
@@ -166,6 +168,7 @@ class ChatService {
       onStreamComplete,
       onModelStreamStart,
       onModelError,
+      onSearchQuery,
       signal,
       startTime
     })
@@ -184,6 +187,7 @@ class ChatService {
     onStreamComplete,
     onModelStreamStart,
     onModelError,
+    onSearchQuery,
     signal,
     startTime
   }: {
@@ -196,6 +200,7 @@ class ChatService {
     onStreamComplete?: (assistantMessage: CreateMessageInput, modelId: string) => void
     onModelStreamStart?: (modelId: string) => void
     onModelError?: (error: Error, modelId: string) => void
+    onSearchQuery?: (query: string) => void
     signal?: AbortSignal
     startTime: number
   }): Promise<CreateMessageInput[]> {
@@ -210,18 +215,18 @@ class ChatService {
       const modelId = count === 0
         ? `${modelConfig.provider}:${modelConfig.model}`
         : `${modelConfig.provider}:${modelConfig.model}#${count + 1}`;
-      
+
       try {
         onModelStreamStart?.(modelId)
-        
+
         // Create individual abort controller for this model
         const modelAbortController = new AbortController()
-        
+
         // If parent signal is aborted, abort this model too
         if (signal) {
           signal.addEventListener('abort', () => modelAbortController.abort())
         }
-        
+
         const result = await this.sendMessageToSingleModel({
           conversationId,
           userMessage,
@@ -231,6 +236,7 @@ class ChatService {
           modelId,
           onStreamChunk,
           onStreamComplete,
+          onSearchQuery,
           signal: modelAbortController.signal,
           startTime
         })
@@ -280,6 +286,7 @@ class ChatService {
     modelId,
     onStreamChunk,
     onStreamComplete,
+    onSearchQuery,
     signal,
     startTime
   }: {
@@ -291,6 +298,7 @@ class ChatService {
     modelId: string
     onStreamChunk?: (content: string, modelId: string) => void
     onStreamComplete?: (assistantMessage: CreateMessageInput, modelId: string) => void
+    onSearchQuery?: (query: string) => void
     signal?: AbortSignal
     startTime: number
   }): Promise<CreateMessageInput> {
@@ -472,13 +480,14 @@ class ChatService {
     // Check if this request has tools - if so, use function calling service
     if (modelConfig.tools && modelConfig.tools.length > 0) {
       console.log('Using function calling service for request with tools')
-      
+
       try {
         const result = await functionCallingService.executeWithFunctionCalling({
           messages,
           modelConfig,
           maxToolCalls: 3,
           onStreamChunk: onStreamChunk ? (content: string) => onStreamChunk(content, modelId) : undefined,
+          onSearchQuery,
           signal
         })
         
@@ -644,7 +653,7 @@ class ChatService {
               console.warn(`PDF file ${file.name} might be too large for Anthropic (estimated ${estimatedSizeMB.toFixed(1)}MB). Anthropic has a 100-page limit.`)
             }
           }
-          
+
           // Anthropic format - use document type for PDF and other files
           content.push({
             type: 'document',

@@ -132,16 +132,19 @@ const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(function ChatView({ c
   const prevMessagesLengthRef = useRef(0)
 
   // Use Zustand stores
-  const { 
-    messages, 
+  const {
+    messages,
     streamingMessage: zustandStreamingMessage,
     streamingMessagesByModel,
+    searchQueries,
     addMessage: addMessageToStore,
     loadMessages,
     setStreamingMessage,
     clearStreamingMessage,
     setStreamingAbortController,
-    getStreamingAbortController
+    getStreamingAbortController,
+    addSearchQuery,
+    clearSearchQueries
   } = useMessages(conversationId ?? null)
   
   const { 
@@ -904,6 +907,11 @@ const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(function ChatView({ c
           setStreamingMessage(activeConversationId, content, modelId)
           console.log(`Streaming from ${modelId}: ${content.slice(0, 50)}...`)
         },
+        onSearchQuery: (query: string) => {
+          // Track search queries for display
+          addSearchQuery(activeConversationId, query)
+          console.log(`Search query: ${query}`)
+        },
         onStreamComplete: async (message: CreateMessageInput, modelId: string) => {
           // Add complete assistant message to store
           try {
@@ -995,6 +1003,7 @@ const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(function ChatView({ c
     } finally {
       setIsLoading(false)
       clearStreamingMessage(activeConversationId)
+      clearSearchQueries(activeConversationId)
       setStreamingAbortController(activeConversationId, null)
     }
   }
@@ -1018,10 +1027,11 @@ const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(function ChatView({ c
             console.error('Failed to save partial message:', err)
           }
         }
-        
+
         setIsLoading(false)
         setStreamingAbortController(conversationId, null)
         clearStreamingMessage(conversationId)
+        clearSearchQueries(conversationId)
       }
     }
   }
@@ -1173,6 +1183,7 @@ const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(function ChatView({ c
             messages={messages}
             streamingMessage={zustandStreamingMessage}
             streamingMessagesByModel={streamingMessagesByModel}
+            searchQueries={searchQueries}
             isLoading={isLoading && isCurrentConversationWaiting}
             expectedModels={isMultiSelectMode && selectedModels.length > 0 ? selectedModels : []}
             scrollContainerRef={scrollContainerRef}
