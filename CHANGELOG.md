@@ -2,7 +2,10 @@
 
 All notable changes to Open Chat will be documented in this file.
 
-## [0.2.2] - TBD
+## [0.2.3] - 2026-02-01
+- Added web search
+
+## [0.2.2] - 2025-08-30
 ### Added
 - Added keyboard shortcut command/control + shift + f to search
 - Added keybaord shortcut command/control + option + f to send feedback
