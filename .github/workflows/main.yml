@@ -27,12 +27,14 @@ jobs:
         run: |
           CARGO_VERSION=$(grep -m1 'version =' src-tauri/Cargo.toml | sed 's/.*"\([^"]*\)".*/\1/')
           PKG_VERSION=$(grep -m1 '"version"' package.json | sed 's/.*"\([0-9.]*\)".*/\1/')
+          TAURI_VERSION=$(grep -m1 '"version"' src-tauri/tauri.conf.json | sed 's/.*"\([0-9.]*\)".*/\1/')
 
           echo "Cargo.toml version: $CARGO_VERSION"
           echo "package.json version: $PKG_VERSION"
+          echo "tauri.conf.json version: $TAURI_VERSION"
 
-          if [ "$CARGO_VERSION" != "$PKG_VERSION" ]; then
-            echo "::error::Version mismatch: Cargo.toml ($CARGO_VERSION) != package.json ($PKG_VERSION)"
+          if [ "$CARGO_VERSION" != "$PKG_VERSION" ] || [ "$CARGO_VERSION" != "$TAURI_VERSION" ]; then
+            echo "::error::Version mismatch: Cargo.toml ($CARGO_VERSION), package.json ($PKG_VERSION), tauri.conf.json ($TAURI_VERSION)"
             exit 1
           fi
 
