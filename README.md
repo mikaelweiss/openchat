@@ -52,7 +52,7 @@ Why the name Open Chat? It's straightforward and represents our commitment to tr
 
 3. **Run the application**
    ```bash
-   bun tauri dev
+   bun run dev:desktop
    ```
 
 ## Development
@@ -61,12 +61,13 @@ Why the name Open Chat? It's straightforward and represents our commitment to tr
 
 | Command | Description |
 |---------|-------------|
-| `bun tauri dev` | Start development server with hot reload |
-| `bun tauri build` | Build production application |
-| `bun dev` | Start frontend development server only |
+| `bun run dev:desktop` | Start development server with hot reload |
+| `bun run dev` | Start frontend development server only |
 | `bun run build` | Build frontend assets only |
-| `bun tauri ios dev` | iOS simulator development |
-| `bun tauri android dev` | Android emulator development |
+| `bun run dev:ios` | iOS simulator development |
+| `bun run dev:android` | Android emulator development |
+| `bun run build:ios` | Build iOS application |
+| `bun run build:android` | Build Android application |
 
 ### Project Structure
 
@@ -130,7 +131,7 @@ src-tauri/              # Rust backend
    ```
 3. **Run on simulator**
    ```bash
-   bun tauri ios dev
+   bun run dev:ios
    ```
 
 #### iOS Troubleshooting
@@ -156,7 +157,7 @@ rm -rf ~/Library/Developer/Xcode/DerivedData/open-chat-*
    ```
 3. **Run on emulator**
    ```bash
-   bun tauri android dev
+   bun run dev:android
    ```
 
 ## Database Schema
