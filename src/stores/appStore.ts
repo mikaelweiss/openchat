@@ -30,6 +30,7 @@ interface AppState {
   messagesByConversation: Map<number | 'pending', Message[]>
   streamingMessages: Map<number | 'pending', Map<string, string>> // conversationId -> modelId -> content
   streamingAbortControllers: Map<number | 'pending', AbortController> // conversationId -> AbortController
+  streamingSearchQueries: Map<number | 'pending', Array<{ query: string; timestamp: number }>> // Track search queries during streaming
   loadingConversations: Set<number>
   
   // Providers
@@ -57,6 +58,9 @@ interface AppState {
   getStreamingMessagesByModel: (conversationId: number | 'pending') => Map<string, string>
   setStreamingAbortController: (conversationId: number | 'pending', controller: AbortController | null) => void
   getStreamingAbortController: (conversationId: number | 'pending') => AbortController | undefined
+  addSearchQuery: (conversationId: number | 'pending', query: string) => void
+  getSearchQueries: (conversationId: number | 'pending') => Array<{ query: string; timestamp: number }>
+  clearSearchQueries: (conversationId: number | 'pending') => void
   
   // Actions - Providers
   loadProviders: () => Promise<void>
@@ -90,6 +94,7 @@ export const useAppStore = create<AppState>()(
     messagesByConversation: new Map(),
     streamingMessages: new Map(),
     streamingAbortControllers: new Map(),
+    streamingSearchQueries: new Map(),
     loadingConversations: new Set(),
     providers: {},
     isProvidersLoaded: false,
@@ -272,11 +277,14 @@ export const useAppStore = create<AppState>()(
             controller.abort()
           }
           newStreamingAbortControllers.delete(id)
-          
-          set({ 
+          const newStreamingSearchQueries = new Map(get().streamingSearchQueries)
+          newStreamingSearchQueries.delete(id)
+
+          set({
             messagesByConversation: newMessagesByConversation,
             streamingMessages: newStreamingMessages,
-            streamingAbortControllers: newStreamingAbortControllers
+            streamingAbortControllers: newStreamingAbortControllers,
+            streamingSearchQueries: newStreamingSearchQueries
           })
           
           get().resetRetryAttempt(id)
@@ -438,6 +446,29 @@ export const useAppStore = create<AppState>()(
       return state.streamingAbortControllers.get(conversationId)
     },
 
+    addSearchQuery: (conversationId: number | 'pending', query: string) => {
+      set((state) => {
+        const newSearchQueries = new Map(state.streamingSearchQueries)
+        const conversationQueries = newSearchQueries.get(conversationId) || []
+        conversationQueries.push({ query, timestamp: Date.now() })
+        newSearchQueries.set(conversationId, conversationQueries)
+        return { streamingSearchQueries: newSearchQueries }
+      })
+    },
+
+    getSearchQueries: (conversationId: number | 'pending') => {
+      const state = get()
+      return state.streamingSearchQueries.get(conversationId) || []
+    },
+
+    clearSearchQueries: (conversationId: number | 'pending') => {
+      set((state) => {
+        const newSearchQueries = new Map(state.streamingSearchQueries)
+        newSearchQueries.delete(conversationId)
+        return { streamingSearchQueries: newSearchQueries }
+      })
+    },
+
     // Provider actions
     loadProviders: async () => {
       try {
@@ -534,10 +565,10 @@ export const useAppStore = create<AppState>()(
         // Clean up pending conversation data
         const newMessagesByConversation = new Map(state.messagesByConversation)
         newMessagesByConversation.delete('pending')
-        
+
         const newStreamingMessages = new Map(state.streamingMessages)
         newStreamingMessages.delete('pending')
-        
+
         const newStreamingAbortControllers = new Map(state.streamingAbortControllers)
         // Abort any ongoing streaming before removing
         const controller = newStreamingAbortControllers.get('pending')
@@ -545,6 +576,9 @@ export const useAppStore = create<AppState>()(
           controller.abort()
         }
         newStreamingAbortControllers.delete('pending')
+
+        const newStreamingSearchQueries = new Map(state.streamingSearchQueries)
+        newStreamingSearchQueries.delete('pending')
         
         const newErrorStates = new Map(state.errorStates)
         newErrorStates.delete('pending')
@@ -557,6 +591,7 @@ export const useAppStore = create<AppState>()(
           messagesByConversation: newMessagesByConversation,
           streamingMessages: newStreamingMessages,
           streamingAbortControllers: newStreamingAbortControllers,
+          streamingSearchQueries: newStreamingSearchQueries,
           errorStates: newErrorStates,
           retryAttempts: newRetryAttempts
         }
@@ -627,6 +662,7 @@ export const useConversations = () => {
 export const useMessages = (conversationId: number | 'pending' | null) => {
   const messagesByConversation = useAppStore((state) => state.messagesByConversation)
   const streamingMessages = useAppStore((state) => state.streamingMessages)
+  const streamingSearchQueries = useAppStore((state) => state.streamingSearchQueries)
   const loadingConversations = useAppStore((state) => state.loadingConversations)
   const loadMessages = useAppStore((state) => state.loadMessages)
   const addMessage = useAppStore((state) => state.addMessage)
@@ -635,6 +671,9 @@ export const useMessages = (conversationId: number | 'pending' | null) => {
   const getStreamingMessagesByModel = useAppStore((state) => state.getStreamingMessagesByModel)
   const setStreamingAbortController = useAppStore((state) => state.setStreamingAbortController)
   const getStreamingAbortController = useAppStore((state) => state.getStreamingAbortController)
+  const addSearchQuery = useAppStore((state) => state.addSearchQuery)
+  const getSearchQueries = useAppStore((state) => state.getSearchQueries)
+  const clearSearchQueries = useAppStore((state) => state.clearSearchQueries)
 
   // Memoize derived values
   const messages = useMemo(() => {
@@ -663,17 +702,25 @@ export const useMessages = (conversationId: number | 'pending' | null) => {
     return conversationId && typeof conversationId === 'number' ? loadingConversations.has(conversationId) : false
   }, [conversationId, loadingConversations])
 
+  const searchQueries = useMemo(() => {
+    return conversationId ? (streamingSearchQueries.get(conversationId) || []) : []
+  }, [conversationId, streamingSearchQueries])
+
   return {
     messages,
     streamingMessage,
     streamingMessagesByModel,
     isLoading,
+    searchQueries,
     loadMessages,
     addMessage,
     setStreamingMessage,
     clearStreamingMessage,
     setStreamingAbortController,
-    getStreamingAbortController
+    getStreamingAbortController,
+    addSearchQuery,
+    getSearchQueries,
+    clearSearchQueries
   }
 }
 

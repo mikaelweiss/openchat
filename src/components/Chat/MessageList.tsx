@@ -1,9 +1,11 @@
 import { format } from 'date-fns'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
+import rehypeKatex from 'rehype-katex'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism'
-import { Copy, Check, FileText, Image, Volume2 } from 'lucide-react'
+import { Copy, Check, FileText, Image, Volume2, ChevronDown, ChevronRight, Search } from 'lucide-react'
 import clsx from 'clsx'
 import React, { useState, useEffect } from 'react'
 import { type Message } from '../../shared/messageStore'
@@ -18,6 +20,7 @@ interface MessageListProps {
   isLoading?: boolean
   streamingMessage?: string
   streamingMessagesByModel?: Map<string, string>
+  searchQueries?: Array<{ query: string; timestamp: number }>
   expectedModels?: Array<{provider: string, model: string}>
   scrollContainerRef?: React.RefObject<HTMLDivElement | null>
   onScroll?: (event: React.UIEvent<HTMLDivElement>) => void
@@ -116,8 +119,43 @@ function AttachmentDisplay({ attachments }: { attachments: { type: string; path:
   )
 }
 
+// Component to display search queries in a collapsible dropdown
+function SearchQueriesDropdown({ queries }: { queries: Array<{ query: string; timestamp: number }> }) {
+  const [isOpen, setIsOpen] = useState(true)
 
-export default function MessageList({ messages = [], isLoading = false, streamingMessage = '', streamingMessagesByModel, expectedModels = [], scrollContainerRef, onScroll }: MessageListProps) {
+  if (!queries || queries.length === 0) return null
+
+  return (
+    <div className="mb-3 glass-effect border border-border/20 rounded-xl overflow-hidden shadow-elegant">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full px-4 py-3 flex items-center gap-2 text-left hover:bg-secondary/50 transition-colors duration-200"
+      >
+        {isOpen ? (
+          <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+        ) : (
+          <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+        )}
+        <Search className="h-4 w-4 text-primary flex-shrink-0" />
+        <span className="text-sm font-medium text-foreground">
+          {queries.length} search{queries.length > 1 ? 'es' : ''} performed
+        </span>
+      </button>
+      {isOpen && (
+        <div className="px-4 pb-3 pt-0 space-y-2">
+          {queries.map((item, index) => (
+            <div key={index} className="flex items-start gap-2 text-sm">
+              <span className="text-muted-foreground flex-shrink-0 mt-0.5">{index + 1}.</span>
+              <span className="text-foreground/90 flex-1">{item.query}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default function MessageList({ messages = [], isLoading = false, streamingMessage = '', streamingMessagesByModel, searchQueries = [], expectedModels = [], scrollContainerRef, onScroll }: MessageListProps) {
   const [loadingMessage, setLoadingMessage] = useState('Assembling')
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null)
   const { userName } = useSettings()
@@ -241,22 +279,10 @@ export default function MessageList({ messages = [], isLoading = false, streamin
   
   const extractCitations = (text: string) => {
     const citationMap = new Map<number, { number: number, url: string, domain?: string }>()
-    const citationRegex = /\[(\d+)\]\((https?:\/\/[^\s)]+)\)/g
+
+    // Pattern 1: XML citations <citation number="1" url="..."/>
     const xmlCitationRegex = /<citation number="(\d+)" url="(https?:\/\/[^\s"]+)"( domain="([^"]+)")?\/>/g
-    const simpleCitationRegex = /\[(\d+)\]/g
-    
-    // Handle markdown citations [1](url)
     let match
-    while ((match = citationRegex.exec(text)) !== null) {
-      const citation = {
-        number: parseInt(match[1]),
-        url: match[2],
-        domain: new URL(match[2]).hostname.replace(/^www\./, '')
-      }
-      citationMap.set(citation.number, citation)
-    }
-    
-    // Handle XML citations
     while ((match = xmlCitationRegex.exec(text)) !== null) {
       const citation = {
         number: parseInt(match[1]),
@@ -265,8 +291,91 @@ export default function MessageList({ messages = [], isLoading = false, streamin
       }
       citationMap.set(citation.number, citation)
     }
-    
-    // Handle simple citations [1] by mapping to search results
+
+    // Pattern 2: Markdown citations with multiple URLs [1](url1)(url2)(url3)...
+    // This regex captures: [number](url)(url)(url)...
+    const multiUrlCitationRegex = /\[(\d+)\]((?:\((https?:\/\/[^\s)]*)\))+)/g
+    while ((match = multiUrlCitationRegex.exec(text)) !== null) {
+      const number = parseInt(match[1])
+      const allParentheses = match[2] // e.g., "(url1)(url2)(url3)"
+
+      // Extract all individual URLs from the parentheses
+      const urlExtractRegex = /\((https?:\/\/[^\s)]*)\)/g
+      let urlMatch
+      while ((urlMatch = urlExtractRegex.exec(allParentheses)) !== null) {
+        const url = urlMatch[1]
+        try {
+          const domain = new URL(url).hostname.replace(/^www\./, '')
+          const citation = { number, url, domain }
+
+          // Only add the first URL to the map
+          if (!citationMap.has(number)) {
+            citationMap.set(number, citation)
+          }
+        } catch (e) {
+          // Invalid URL, skip
+        }
+      }
+    }
+
+    // Pattern 3: Standard markdown citation [1](url) - single URL only
+    // Only run this if we haven't already found this citation number
+    const singleUrlCitationRegex = /\[(\d+)\]\((https?:\/\/[^\s)]+)\)/g
+    while ((match = singleUrlCitationRegex.exec(text)) !== null) {
+      const number = parseInt(match[1])
+      if (!citationMap.has(number)) {
+        try {
+          const citation = {
+            number,
+            url: match[2],
+            domain: new URL(match[2]).hostname.replace(/^www\./, '')
+          }
+          citationMap.set(number, citation)
+        } catch (e) {
+          // Invalid URL, skip
+        }
+      }
+    }
+
+    // Pattern 4: Extract URLs from reference-style links [text][number](url)
+    const refWithUrlRegex = /\[[^\]]+\]\[(\d+)\]\((https?:\/\/[^\s)]+)\)/g
+    while ((match = refWithUrlRegex.exec(text)) !== null) {
+      const number = parseInt(match[1])
+      if (!citationMap.has(number)) {
+        try {
+          const citation = {
+            number,
+            url: match[2],
+            domain: new URL(match[2]).hostname.replace(/^www\./, '')
+          }
+          citationMap.set(number, citation)
+        } catch (e) {
+          // Invalid URL, skip
+        }
+      }
+    }
+
+    // Pattern 5: Extract any URLs that appear after citation markers like [1] or [2]
+    // This catches patterns where the AI puts URLs in separate parentheses
+    const looseUrlRegex = /\[(\d+)\][^\n]*?\((https?:\/\/[^\s)]+)\)/g
+    while ((match = looseUrlRegex.exec(text)) !== null) {
+      const number = parseInt(match[1])
+      if (!citationMap.has(number)) {
+        try {
+          const citation = {
+            number,
+            url: match[2],
+            domain: new URL(match[2]).hostname.replace(/^www\./, '')
+          }
+          citationMap.set(number, citation)
+        } catch (e) {
+          // Invalid URL, skip
+        }
+      }
+    }
+
+    // Pattern 6: Simple citations [1] - map to search results
+    const simpleCitationRegex = /\[(\d+)\](?!\()/g
     const numbers = new Set<number>()
     while ((match = simpleCitationRegex.exec(text)) !== null) {
       const number = parseInt(match[1])
@@ -275,7 +384,7 @@ export default function MessageList({ messages = [], isLoading = false, streamin
         numbers.add(number)
       }
     }
-    
+
     // Map simple citations to search result URLs
     // More robust pattern that accounts for any content between Title and URL lines
     const resultRegex = /\*\*Result (\d+):\*\*\n\*\*Title:\*\* [^\n]*\n\*\*URL:\*\* (https?:\/\/[^\s\n]+)/g
@@ -283,15 +392,19 @@ export default function MessageList({ messages = [], isLoading = false, streamin
       const number = parseInt(match[1])
       if (numbers.has(number)) {
         const url = match[2]
-        const citation = {
-          number,
-          url,
-          domain: new URL(url).hostname.replace(/^www\./, '')
+        try {
+          const citation = {
+            number,
+            url,
+            domain: new URL(url).hostname.replace(/^www\./, '')
+          }
+          citationMap.set(number, citation)
+        } catch (e) {
+          // Invalid URL, skip
         }
-        citationMap.set(number, citation)
       }
     }
-    
+
     // Fallback: if we still have unmapped simple citations, extract all URLs from the search results section
     if (numbers.size > 0 && citationMap.size < numbers.size) {
       // Look for the search results section
@@ -308,24 +421,28 @@ export default function MessageList({ messages = [], isLoading = false, streamin
             url: urlMatch[2]
           });
         }
-        
+
         // Map any remaining simple citations
         for (const number of numbers) {
           if (!citationMap.has(number)) {
             const urlMatch = urlMatches.find(m => m.number === number);
             if (urlMatch) {
-              const citation = {
-                number,
-                url: urlMatch.url,
-                domain: new URL(urlMatch.url).hostname.replace(/^www\./, '')
+              try {
+                const citation = {
+                  number,
+                  url: urlMatch.url,
+                  domain: new URL(urlMatch.url).hostname.replace(/^www\./, '')
+                }
+                citationMap.set(number, citation);
+              } catch (e) {
+                // Invalid URL, skip
               }
-              citationMap.set(number, citation);
             }
           }
         }
       }
     }
-    
+
     // Convert map to array and sort by number
     return Array.from(citationMap.values()).sort((a, b) => a.number - b.number)
   }
@@ -636,7 +753,7 @@ export default function MessageList({ messages = [], isLoading = false, streamin
                     {format(new Date(message.created_at), 'h:mm a')}
                   </span>
                 </div>
-                
+
                 {/* Show file attachments */}
                 <AttachmentDisplay attachments={
                   message.images?.map(img => ({ type: 'image', path: img.file_path || img.url || '', mimeType: img.mime_type || 'image/*' })) ||
@@ -644,13 +761,19 @@ export default function MessageList({ messages = [], isLoading = false, streamin
                   message.files?.map(file => ({ type: 'file', path: file.path, mimeType: file.type })) ||
                   null
                 } />
-                
+
+                {/* Show search queries if this message has them in metadata */}
+                {message.role === 'assistant' && message.metadata?.searchQueries && (
+                  <SearchQueriesDropdown queries={message.metadata.searchQueries} />
+                )}
+
                 <div className={clsx(
                   'prose prose-sm dark:prose-invert max-w-none break-words selection:bg-primary/20 p-4 rounded-2xl relative group',
                   message.role === 'user' ? 'message-bubble-user' : 'message-bubble-assistant'
                 )}>
                   <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
+                    remarkPlugins={[remarkGfm, remarkMath]}
+                    rehypePlugins={[rehypeKatex]}
                     components={markdownComponents}
                   >
                     {message.text || ''}
@@ -723,7 +846,8 @@ export default function MessageList({ messages = [], isLoading = false, streamin
                       </div>
                       <div className="prose prose-sm dark:prose-invert max-w-none break-words selection:bg-primary/20 p-3 pt-2">
                         <ReactMarkdown
-                          remarkPlugins={[remarkGfm]}
+                          remarkPlugins={[remarkGfm, remarkMath]}
+                          rehypePlugins={[rehypeKatex]}
                           components={markdownComponents}
                         >
                           {message.text || ''}
@@ -846,7 +970,8 @@ export default function MessageList({ messages = [], isLoading = false, streamin
                           {isStreaming ? (
                             <>
                               <ReactMarkdown
-                                remarkPlugins={[remarkGfm]}
+                                remarkPlugins={[remarkGfm, remarkMath]}
+                                rehypePlugins={[rehypeKatex]}
                                 components={markdownComponents}
                               >
                                 {streamingContent}
@@ -902,7 +1027,8 @@ export default function MessageList({ messages = [], isLoading = false, streamin
                         </div>
                         <div className="prose prose-sm dark:prose-invert max-w-none break-words selection:bg-primary/20 p-3 pt-2">
                           <ReactMarkdown
-                            remarkPlugins={[remarkGfm]}
+                            remarkPlugins={[remarkGfm, remarkMath]}
+                            rehypePlugins={[rehypeKatex]}
                             components={markdownComponents}
                           >
                             {content}
@@ -920,7 +1046,8 @@ export default function MessageList({ messages = [], isLoading = false, streamin
                 return (
                   <div key={modelId} className="message-bubble-assistant prose prose-sm dark:prose-invert max-w-none break-words selection:bg-primary/20 p-4 rounded-2xl relative group">
                     <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
+                      remarkPlugins={[remarkGfm, remarkMath]}
+                      rehypePlugins={[rehypeKatex]}
                       components={markdownComponents}
                     >
                       {content}
@@ -951,10 +1078,11 @@ export default function MessageList({ messages = [], isLoading = false, streamin
           </div>
         </div>
       )}
-      
-      {/* Single streaming message display */}
-      {((streamingMessage && (!streamingMessagesByModel || streamingMessagesByModel.size === 0)) || 
-        (streamingMessagesByModel && streamingMessagesByModel.size === 1 && expectedModels.length <= 1)) && (
+
+      {/* Single streaming message display (or just search queries before streaming starts) */}
+      {((streamingMessage && (!streamingMessagesByModel || streamingMessagesByModel.size === 0)) ||
+        (streamingMessagesByModel && streamingMessagesByModel.size === 1 && expectedModels.length <= 1) ||
+        searchQueries.length > 0) && (
         <div className="w-full max-w-[950px] mx-auto elegant-fade-in">
           <div className="space-y-3">
             <div className="flex items-baseline gap-3">
@@ -963,53 +1091,60 @@ export default function MessageList({ messages = [], isLoading = false, streamin
                 {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
             </div>
-            
-            <div className="message-bubble-assistant prose prose-sm dark:prose-invert max-w-none break-words selection:bg-primary/20 p-4 rounded-2xl relative group">
-              {(() => {
-                const content = streamingMessage || 
-                  (streamingMessagesByModel && streamingMessagesByModel.size === 1 ? 
-                   Array.from(streamingMessagesByModel.values())[0] : '')
-                return (
-                  <>
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      components={markdownComponents}
-                    >
-                      {content}
-                    </ReactMarkdown>
-                    <CitationList citations={extractCitations(content)} />
-                  </>
-                )
-              })()}
-              <div className="inline-block w-2 h-4 bg-primary animate-pulse ml-1 rounded-full" />
-              
-              <button
-                onClick={() => {
-                  const content = streamingMessage || 
-                    (streamingMessagesByModel && streamingMessagesByModel.size === 1 ? 
+
+            {/* Show search queries dropdown if any - appears immediately when searches start */}
+            <SearchQueriesDropdown queries={searchQueries} />
+
+            {/* Show streaming content if available */}
+            {(streamingMessage || (streamingMessagesByModel && streamingMessagesByModel.size === 1)) && (
+              <div className="message-bubble-assistant prose prose-sm dark:prose-invert max-w-none break-words selection:bg-primary/20 p-4 rounded-2xl relative group">
+                {(() => {
+                  const content = streamingMessage ||
+                    (streamingMessagesByModel && streamingMessagesByModel.size === 1 ?
                      Array.from(streamingMessagesByModel.values())[0] : '')
-                  copyToClipboard(content, 'streaming')
-                }}
-                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-all duration-200 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary p-1.5 rounded-lg elegant-hover"
-                title="Copy message"
-              >
-                {copiedMessageId === 'streaming' ? (
-                  <>
-                    <Check className="h-3 w-3" />
-                    Copied
-                  </>
-                ) : (
-                  <>
-                    <Copy className="h-3 w-3" />
-                    Copy
-                  </>
-                )}
-              </button>
-            </div>
+                  return (
+                    <>
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm, remarkMath]}
+                        rehypePlugins={[rehypeKatex]}
+                        components={markdownComponents}
+                      >
+                        {content}
+                      </ReactMarkdown>
+                      <CitationList citations={extractCitations(content)} />
+                    </>
+                  )
+                })()}
+                <div className="inline-block w-2 h-4 bg-primary animate-pulse ml-1 rounded-full" />
+
+                <button
+                  onClick={() => {
+                    const content = streamingMessage ||
+                      (streamingMessagesByModel && streamingMessagesByModel.size === 1 ?
+                       Array.from(streamingMessagesByModel.values())[0] : '')
+                    copyToClipboard(content, 'streaming')
+                  }}
+                  className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-all duration-200 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary p-1.5 rounded-lg elegant-hover"
+                  title="Copy message"
+                >
+                  {copiedMessageId === 'streaming' ? (
+                    <>
+                      <Check className="h-3 w-3" />
+                      Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-3 w-3" />
+                      Copy
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
-      
+
       {/* Loading indicator - show when loading and no streaming started yet, but hide in multi-model mode */}
       {isLoading && !streamingMessage && (!streamingMessagesByModel || streamingMessagesByModel.size === 0) && expectedModels.length <= 1 && (
         <div className="w-full max-w-[950px] mx-auto elegant-fade-in">

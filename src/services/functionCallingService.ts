@@ -5,9 +5,14 @@ import { convertToolsToAnthropicFormat } from '../types/search'
 interface OpenAIMessage {
   role: 'system' | 'user' | 'assistant' | 'tool'
   content?: string | Array<{
-    type: 'text' | 'image_url'
+    type: 'text' | 'image_url' | 'document'
     text?: string
     image_url?: { url: string }
+    source?: {
+      type: string
+      media_type: string
+      data: string
+    }
   }>
   tool_calls?: Array<{
     id: string
@@ -23,13 +28,18 @@ interface OpenAIMessage {
 
 // Anthropic-specific types
 interface AnthropicContentBlock {
-  type: 'text' | 'tool_use' | 'tool_result'
+  type: 'text' | 'tool_use' | 'tool_result' | 'image' | 'document'
   text?: string
   id?: string
   name?: string
   input?: any
   tool_use_id?: string
   content?: string
+  source?: {
+    type: string
+    media_type: string
+    data: string
+  }
 }
 
 interface AnthropicMessage {
@@ -58,25 +68,63 @@ interface ModelConfig {
 
 class FunctionCallingService {
   /**
-   * Convert reference-style citations to inline citations
-   * Extracts URLs from tool results and replaces [text][number] with [number](url)
+   * Normalize weird AI citation formats to standard format
+   * Handles:
+   * - Multiple URLs: [1](url1)(url2) -> [1](url1)
+   * - Reference with URL: [text][1](url) -> text[1](url)
+   * - Loose URLs: [1] some text (url) -> [1](url)
    */
-  private convertReferenceCitationsToInline(content: string, searchResults: Map<number, string>): string {
-    if (searchResults.size === 0) return content
+  private normalizeCitationFormats(content: string, searchResults: Map<number, string>): string {
+    let processed = content
 
-    // Replace reference-style citations [text][number] with text[number](url)
+    // Fix 1: Convert [text][number](url) to text[number](url)
+    processed = processed.replace(
+      /\[([^\]]+)\]\[(\d+)\]\((https?:\/\/[^\s)]+)\)/g,
+      (_match, text, num, url) => {
+        return `${text}[${num}](${url})`
+      }
+    )
+
+    // Fix 2: Normalize multiple URLs [1](url1)(url2) -> [1](url1)
+    // Keep only the first URL for each citation
+    processed = processed.replace(
+      /\[(\d+)\]((?:\((https?:\/\/[^\s)]*)\))+)/g,
+      (_match, num, _allParens, firstUrl) => {
+        if (firstUrl) {
+          return `[${num}](${firstUrl})`
+        }
+        return _match
+      }
+    )
+
+    // Fix 3: Handle loose URLs that appear after citation markers
+    // Pattern: [1] some text (url) -> [1](url) some text
+    // We look for [number] followed eventually by (url) on the same line
+    processed = processed.replace(
+      /\[(\d+)\]([^\n]*?)\((https?:\/\/[^\s)]+)\)/g,
+      (_match, num, middle, url) => {
+        // If there's just whitespace or nothing between, keep it simple
+        if (middle.trim() === '' || /^\s+$/.test(middle)) {
+          return `[${num}](${url})${middle}`
+        }
+        // If there's text, move the URL to the citation
+        return `[${num}](${url})${middle}`
+      }
+    )
+
+    // Fix 4: Convert reference-style citations [text][number] to text[number](url)
     // This preserves the readable text and makes the citation number clickable
-    let processed = content.replace(/\[([^\]]+)\]\[(\d+)\]/g, (match, text, num) => {
+    processed = processed.replace(/\[([^\]]+)\]\[(\d+)\](?!\()/g, (_match, text, num) => {
       const number = parseInt(num)
       const url = searchResults.get(number)
       if (url) {
         return `${text}[${number}](${url})`
       }
-      return match // Leave unchanged if no URL found
+      return _match // Leave unchanged if no URL found
     })
 
-    // Remove orphaned reference definitions at the end (just numbers on their own lines)
-    processed = processed.replace(/\n\n(\d+)\n(\d+)\n(\d+)[\n\d]*$/g, '')
+    // Fix 5: Remove orphaned reference definitions at the end (just numbers on their own lines)
+    processed = processed.replace(/\n\n\d+\n\d+\n\d+[\n\d]*$/g, '')
 
     return processed
   }
@@ -89,18 +137,21 @@ class FunctionCallingService {
     modelConfig,
     maxToolCalls = 3,
     onStreamChunk,
+    onSearchQuery,
     signal
-  }: { 
+  }: {
     messages: OpenAIMessage[]
     modelConfig: ModelConfig
     maxToolCalls?: number
     onStreamChunk?: (content: string) => void
+    onSearchQuery?: (query: string) => void
     signal?: AbortSignal
   }): Promise<CreateMessageInput> {
     let currentMessages = [...messages]
     let toolCallCount = 0
     let finalContent = ''
     const searchResultUrls = new Map<number, string>() // Track URLs for citation post-processing
+    const searchQueries: Array<{ query: string; timestamp: number }> = [] // Track search queries
 
     while (toolCallCount < maxToolCalls) {
       const response = await this.callModel({
@@ -120,17 +171,20 @@ class FunctionCallingService {
           tool_calls: response.tool_calls
         })
 
-        // Stream tool execution info if needed
-        if (onStreamChunk) {
-          const toolInfo = response.tool_calls.map(tc => {
+        // Track search queries for display (dropdown will show these after completion)
+        for (const tc of response.tool_calls) {
+          if (tc.function.name === 'web_search') {
             try {
               const args = JSON.parse(tc.function.arguments)
-              return `🔍 Searching for: ${args.query || 'information'}`
+              const query = args.query || 'unknown'
+              searchQueries.push({ query, timestamp: Date.now() })
+              // Notify the UI immediately so we can show it during streaming
+              onSearchQuery?.(query)
             } catch {
-              return `🔍 Searching...`
+              searchQueries.push({ query: 'unknown', timestamp: Date.now() })
+              onSearchQuery?.('unknown')
             }
-          }).join('\n')
-          onStreamChunk(toolInfo + '\n\n')
+          }
         }
 
         // Execute tool calls
@@ -176,34 +230,34 @@ class FunctionCallingService {
         // Continue the loop to get the final response
         continue
       } else {
-        // No tool calls, this is the final response
-        finalContent = response.content || ''
-        if (onStreamChunk && finalContent) {
-          onStreamChunk(finalContent)
-        }
+        // No tool calls, this is the final response - use streaming!
+        finalContent = await this.callModelWithStreaming({
+          messages: currentMessages,
+          modelConfig,
+          onStreamChunk,
+          signal
+        })
         break
       }
     }
 
     // If we exited the loop due to hitting max tool calls without getting a final response,
     // make one final call to get the model's answer (without allowing more tool calls)
+    // Use streaming for better UX
     if (!finalContent && toolCallCount >= maxToolCalls) {
       console.log('Hit max tool calls, requesting final response without tools')
       const configWithoutTools = { ...modelConfig, tools: undefined }
-      const finalResponse = await this.callModel({
+      finalContent = await this.callModelWithStreaming({
         messages: currentMessages,
         modelConfig: configWithoutTools,
+        onStreamChunk,
         signal
       })
-      finalContent = finalResponse.content || ''
-      if (onStreamChunk && finalContent) {
-        onStreamChunk(finalContent)
-      }
     }
 
-    // Post-process content to fix reference-style citations
+    // Post-process content to normalize weird citation formats
     if (searchResultUrls.size > 0 && finalContent) {
-      finalContent = this.convertReferenceCitationsToInline(finalContent, searchResultUrls)
+      finalContent = this.normalizeCitationFormats(finalContent, searchResultUrls)
     }
 
     // Return the final assistant message
@@ -212,7 +266,8 @@ class FunctionCallingService {
       text: finalContent,
       processing_time_ms: Date.now(),
       provider: modelConfig.provider,
-      model: modelConfig.model
+      model: modelConfig.model,
+      metadata: searchQueries.length > 0 ? { searchQueries } : undefined
     }
   }
 
@@ -276,16 +331,39 @@ class FunctionCallingService {
         }
       }
 
-      // Multimodal content (images, etc.)
+      // Multimodal content (images, documents, etc.)
       if (Array.isArray(msg.content)) {
         const anthropicBlocks: AnthropicContentBlock[] = msg.content.map(block => {
           if (block.type === 'text' && block.text) {
-            return { type: 'text', text: block.text }
+            return { type: 'text' as const, text: block.text }
           }
-          // For now, convert image_url to text description
-          // TODO: Proper image support for Anthropic
-          return { type: 'text', text: '[Image]' }
-        })
+          // Handle image_url type (OpenAI format -> Anthropic format)
+          if (block.type === 'image_url' && block.image_url) {
+            // Extract base64 data from data URL
+            const url = block.image_url.url
+            if (url.startsWith('data:')) {
+              const [mimeType, base64] = url.split(',')[1] ? [url.split(';')[0].split(':')[1], url.split(',')[1]] : ['image/png', url.split(',')[1]]
+              return {
+                type: 'image' as const,
+                source: {
+                  type: 'base64',
+                  media_type: mimeType,
+                  data: base64
+                }
+              }
+            }
+          }
+          // Handle document type (PDFs and other files)
+          if (block.type === 'document' && block.source) {
+            return {
+              type: 'document' as const,
+              source: block.source
+            }
+          }
+          // Fallback for unknown types
+          console.warn('Unknown content block type in Anthropic conversion:', block)
+          return { type: 'text' as const, text: '' }
+        }).filter(block => block.type !== 'text' || block.text !== '') // Remove empty text blocks
 
         return {
           role: msg.role as 'user' | 'assistant',
@@ -453,27 +531,192 @@ class FunctionCallingService {
     }
   }
 
+  /**
+   * Make a streaming API call to the model (for final text response)
+   * This is used after all tool calls are complete
+   */
+  private async callModelWithStreaming({
+    messages,
+    modelConfig,
+    onStreamChunk,
+    signal
+  }: {
+    messages: OpenAIMessage[]
+    modelConfig: ModelConfig
+    onStreamChunk?: (content: string) => void
+    signal?: AbortSignal
+  }): Promise<string> {
+    const isAnthropic = modelConfig.endpoint.includes('anthropic.com')
+    const isGemini = modelConfig.endpoint.includes('generativelanguage.googleapis.com')
+
+    // Convert messages to provider-specific format
+    let apiMessages: any = messages
+    let anthropicTools: any[] | undefined
+    let anthropicSystemPrompt: string | undefined
+
+    if (isAnthropic) {
+      // Extract system messages before conversion
+      const systemMessages = messages.filter(m => m.role === 'system')
+      const nonSystemMessages = messages.filter(m => m.role !== 'system')
+
+      // Combine all system message content
+      if (systemMessages.length > 0) {
+        anthropicSystemPrompt = systemMessages
+          .map(m => typeof m.content === 'string' ? m.content : '')
+          .filter(Boolean)
+          .join('\n\n')
+      }
+
+      apiMessages = this.convertToAnthropicMessages(nonSystemMessages)
+
+      // Convert tools to Anthropic format using the proper conversion function
+      // This handles web_search tools specially (native Anthropic format)
+      if (modelConfig.tools && modelConfig.tools.length > 0) {
+        anthropicTools = convertToolsToAnthropicFormat(modelConfig.tools)
+      }
+    }
+
+    // Build request payload with streaming enabled
+    const requestPayload = isAnthropic ? {
+      model: modelConfig.model,
+      messages: apiMessages,
+      stream: true, // Enable streaming for final response
+      max_tokens: modelConfig.maxTokens || 1024,
+      ...(anthropicSystemPrompt && { system: anthropicSystemPrompt }),
+      ...(modelConfig.temperature !== undefined && { temperature: modelConfig.temperature }),
+      ...(modelConfig.topP !== undefined && { top_p: modelConfig.topP }),
+      ...(anthropicTools && anthropicTools.length > 0 && {
+        tools: anthropicTools,
+        tool_choice: { type: "any" }
+      }),
+    } : {
+      model: modelConfig.model,
+      messages: apiMessages,
+      stream: true, // Enable streaming for final response
+      ...(modelConfig.temperature !== undefined && { temperature: modelConfig.temperature }),
+      ...(modelConfig.maxTokens !== undefined && { max_tokens: modelConfig.maxTokens }),
+      ...(modelConfig.topP !== undefined && { top_p: modelConfig.topP }),
+      ...(modelConfig.tools && modelConfig.tools.length > 0 && {
+        tools: modelConfig.tools,
+        ...(!isGemini && { tool_choice: "required" })
+      }),
+    }
+
+    // Build headers
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json'
+    }
+
+    // Add authentication based on provider
+    if (!modelConfig.isLocal && modelConfig.apiKey) {
+      if (isAnthropic) {
+        headers['x-api-key'] = modelConfig.apiKey
+        headers['anthropic-version'] = '2023-06-01'
+        headers['anthropic-dangerous-direct-browser-access'] = 'true'
+      } else {
+        headers['Authorization'] = `Bearer ${modelConfig.apiKey}`
+      }
+    }
+
+    // Build endpoint URL
+    const chatEndpoint = this.buildChatEndpoint(modelConfig.endpoint)
+
+    // Make the API call
+    const response = await fetch(chatEndpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(requestPayload),
+      signal
+    })
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status} ${response.statusText}`)
+    }
+
+    // Process streaming response
+    const reader = response.body?.getReader()
+    if (!reader) {
+      throw new Error('No response body reader available')
+    }
+
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let fullContent = ''
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || '' // Keep incomplete line in buffer
+
+        for (const line of lines) {
+          if (line.trim() === '') continue
+
+          let data = line
+
+          // OpenAI and Anthropic use "data: " prefix
+          if (line.startsWith('data: ')) {
+            data = line.slice(6).trim()
+            if (data === '[DONE]') continue
+          } else {
+            continue // Skip lines that don't start with "data: "
+          }
+
+          try {
+            const chunk = JSON.parse(data)
+            let deltaContent = ''
+
+            if (isAnthropic) {
+              // Anthropic streaming format
+              if (chunk.type === 'content_block_delta') {
+                deltaContent = chunk.delta?.text || ''
+              }
+            } else {
+              // OpenAI streaming format
+              deltaContent = chunk.choices?.[0]?.delta?.content || ''
+            }
+
+            if (deltaContent) {
+              fullContent += deltaContent
+              onStreamChunk?.(deltaContent)
+            }
+          } catch (err) {
+            console.warn('Failed to parse streaming chunk:', err, 'Line:', line)
+          }
+        }
+      }
+
+      return fullContent
+    } finally {
+      reader.releaseLock()
+    }
+  }
+
   private buildChatEndpoint(endpoint: string): string {
     // Special case for Anthropic
     if (endpoint.includes('anthropic.com')) {
       return endpoint.endsWith('/v1') ? endpoint + '/messages' : endpoint + '/messages'
     }
-    
+
     // Special case for Ollama
     if (endpoint.includes('ollama') || endpoint.includes('11434')) {
       return endpoint.replace('/v1', '') + '/api/chat'
     }
-    
+
     // For OpenAI-compatible endpoints, ensure /chat/completions suffix
     if (endpoint.endsWith('/chat/completions')) {
       return endpoint
     }
-    
+
     // Add appropriate suffix
     if (endpoint.endsWith('/v1')) {
       return endpoint + '/chat/completions'
     }
-    
+
     // Default: append /chat/completions
     return endpoint + '/chat/completions'
   }
