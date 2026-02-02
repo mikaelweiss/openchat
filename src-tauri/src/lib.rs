@@ -2,6 +2,8 @@ mod ollama;
 mod system_info;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod search;
+#[cfg(target_os = "ios")]
+mod keychain;
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -202,11 +204,6 @@ pub fn run() {
             );
     }
 
-    #[cfg(any(target_os = "android", target_os = "ios"))]
-    {
-        builder = builder.plugin(tauri_plugin_keychain::init());
-    }
-
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
         builder.invoke_handler(tauri::generate_handler![
@@ -227,7 +224,25 @@ pub fn run() {
         .expect("error while running tauri application");
     }
 
-    #[cfg(any(target_os = "android", target_os = "ios"))]
+    #[cfg(target_os = "ios")]
+    {
+        builder.invoke_handler(tauri::generate_handler![
+            greet,
+            ollama::detect_ollama,
+            ollama::start_ollama,
+            ollama::stop_ollama,
+            ollama::discover_models,
+            system_info::get_system_info,
+            system_info::validate_model_system_compatibility,
+            keychain::keychain_save,
+            keychain::keychain_get,
+            keychain::keychain_delete
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+    }
+
+    #[cfg(target_os = "android")]
     {
         builder.invoke_handler(tauri::generate_handler![
             greet,

@@ -2816,6 +2816,7 @@ dependencies = [
  "base64 0.21.7",
  "reqwest",
  "scraper",
+ "security-framework 3.5.1",
  "serde",
  "serde_json",
  "tauri",
@@ -2823,7 +2824,6 @@ dependencies = [
  "tauri-plugin-dialog",
  "tauri-plugin-fs",
  "tauri-plugin-global-shortcut",
- "tauri-plugin-keychain",
  "tauri-plugin-keyring",
  "tauri-plugin-opener",
  "tauri-plugin-os",
@@ -4867,18 +4867,6 @@ dependencies = [
  "tauri",
  "tauri-plugin",
  "thiserror 2.0.18",
-]
-
-[[package]]
-name = "tauri-plugin-keychain"
-version = "2.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f23e3f77ea4c7218b7268090b76f822efe729463570d39396c8f80dfc49d6cb6"
-dependencies = [
- "serde",
- "tauri",
- "tauri-plugin",
- "thiserror 1.0.69",
 ]
 
 [[package]]

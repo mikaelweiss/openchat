@@ -9,6 +9,27 @@ const isDev = import.meta.env.DEV || import.meta.env.MODE === 'development'
 
 const ENCRYPTION_KEY = "open-chat-2024-secure-key-storage-v1-dev-only"
 
+const keyCache = new Map<string, string>()
+let fileKeysData: Record<string, string> = {}
+let fileStorageInitialized = false
+let cachedPlatform: string | null = null
+
+function getPlatform(): string {
+  if (cachedPlatform === null) {
+    cachedPlatform = platform()
+  }
+  return cachedPlatform
+}
+
+function shouldUseFileStorage(): boolean {
+  const plat = getPlatform()
+  return isDev || plat === 'android'
+}
+
+function isIOS(): boolean {
+  return getPlatform() === 'ios'
+}
+
 function simpleEncrypt(text: string): string {
   let result = ''
   for (let i = 0; i < text.length; i++) {
@@ -35,67 +56,55 @@ function simpleDecrypt(encrypted: string): string {
   }
 }
 
-const keyCache = new Map<string, string>()
-let devKeysData: Record<string, string> = {}
-let devInitialized = false
-let cachedPlatform: string | null = null
-
-function getPlatformType(): 'mobile' | 'desktop' {
-  if (cachedPlatform === null) {
-    cachedPlatform = platform()
-  }
-  return (cachedPlatform === 'ios' || cachedPlatform === 'android') ? 'mobile' : 'desktop'
-}
-
-async function loadDevKeys(): Promise<void> {
+async function loadFileKeys(): Promise<void> {
   try {
     if (await exists(KEYS_FILE, { baseDir: BaseDirectory.AppData })) {
       const encrypted = await readTextFile(KEYS_FILE, { baseDir: BaseDirectory.AppData })
       const decrypted = simpleDecrypt(encrypted)
       if (decrypted) {
-        devKeysData = JSON.parse(decrypted)
-        Object.entries(devKeysData).forEach(([key, value]) => {
+        fileKeysData = JSON.parse(decrypted)
+        Object.entries(fileKeysData).forEach(([key, value]) => {
           keyCache.set(key, value)
         })
       }
     }
   } catch (error) {
-    console.error('Failed to load dev keys:', error)
-    devKeysData = {}
+    console.error('Failed to load keys from file:', error)
+    fileKeysData = {}
   }
 }
 
-async function saveDevKeys(): Promise<void> {
+async function saveFileKeys(): Promise<void> {
   try {
-    const encrypted = simpleEncrypt(JSON.stringify(devKeysData))
+    const encrypted = simpleEncrypt(JSON.stringify(fileKeysData))
     await writeTextFile(KEYS_FILE, encrypted, { baseDir: BaseDirectory.AppData })
   } catch (error) {
-    console.error('Failed to save dev keys:', error)
+    console.error('Failed to save keys to file:', error)
     throw error
   }
 }
 
-async function ensureDevInitialized() {
-  if (!devInitialized) {
-    await loadDevKeys()
-    devInitialized = true
+async function ensureFileStorageInitialized() {
+  if (!fileStorageInitialized) {
+    await loadFileKeys()
+    fileStorageInitialized = true
   }
 }
 
-async function keychainSave(key: string, password: string): Promise<void> {
-  await invoke('plugin:keychain|save_item', { key, password })
+async function iosKeychainSave(key: string, value: string): Promise<void> {
+  await invoke('keychain_save', { key, value })
 }
 
-async function keychainGet(key: string): Promise<string | null> {
+async function iosKeychainGet(key: string): Promise<string | null> {
   try {
-    return await invoke<string | null>('plugin:keychain|get_item', { key })
+    return await invoke<string | null>('keychain_get', { key })
   } catch {
     return null
   }
 }
 
-async function keychainDelete(key: string): Promise<void> {
-  await invoke('plugin:keychain|remove_item', { key })
+async function iosKeychainDelete(key: string): Promise<void> {
+  await invoke('keychain_delete', { key })
 }
 
 async function keyringSet(service: string, key: string, password: string): Promise<void> {
@@ -117,23 +126,20 @@ export async function saveApiKey(providerId: string, apiKey: string): Promise<vo
   const key = `provider-${providerId}`
 
   try {
-    if (isDev) {
-      await ensureDevInitialized()
-      devKeysData[key] = apiKey
+    if (shouldUseFileStorage()) {
+      await ensureFileStorageInitialized()
+      fileKeysData[key] = apiKey
       keyCache.set(key, apiKey)
-      await saveDevKeys()
-      console.log(`[DEV MODE] Saved API key for ${providerId} to encrypted file`)
+      await saveFileKeys()
+      console.log(`Saved API key for ${providerId} to encrypted file`)
+    } else if (isIOS()) {
+      await iosKeychainSave(key, apiKey)
+      keyCache.set(key, apiKey)
+      console.log(`Saved API key for ${providerId} to iOS keychain`)
     } else {
-      const platformType = getPlatformType()
-
-      if (platformType === 'mobile') {
-        await keychainSave(key, apiKey)
-        console.log(`Saved API key for ${providerId} to mobile keychain`)
-      } else {
-        await keyringSet(SERVICE_NAME, key, apiKey)
-        console.log(`Saved API key for ${providerId} to system keyring`)
-      }
+      await keyringSet(SERVICE_NAME, key, apiKey)
       keyCache.set(key, apiKey)
+      console.log(`Saved API key for ${providerId} to system keyring`)
     }
   } catch (error) {
     console.error(`Failed to save API key for provider ${providerId}:`, error)
@@ -149,23 +155,21 @@ export async function getApiKey(providerId: string): Promise<string | null> {
   }
 
   try {
-    if (isDev) {
-      await ensureDevInitialized()
-      const value = devKeysData[key] || null
+    if (shouldUseFileStorage()) {
+      await ensureFileStorageInitialized()
+      const value = fileKeysData[key] || null
+      if (value) {
+        keyCache.set(key, value)
+      }
+      return value
+    } else if (isIOS()) {
+      const value = await iosKeychainGet(key)
       if (value) {
         keyCache.set(key, value)
       }
       return value
     } else {
-      const platformType = getPlatformType()
-      let value: string | null
-
-      if (platformType === 'mobile') {
-        value = await keychainGet(key)
-      } else {
-        value = await keyringGet(SERVICE_NAME, key)
-      }
-
+      const value = await keyringGet(SERVICE_NAME, key)
       if (value) {
         keyCache.set(key, value)
       }
@@ -183,21 +187,17 @@ export async function deleteApiKey(providerId: string): Promise<void> {
   try {
     keyCache.delete(key)
 
-    if (isDev) {
-      await ensureDevInitialized()
-      delete devKeysData[key]
-      await saveDevKeys()
-      console.log(`[DEV MODE] Deleted API key for ${providerId} from encrypted file`)
+    if (shouldUseFileStorage()) {
+      await ensureFileStorageInitialized()
+      delete fileKeysData[key]
+      await saveFileKeys()
+      console.log(`Deleted API key for ${providerId} from encrypted file`)
+    } else if (isIOS()) {
+      await iosKeychainDelete(key)
+      console.log(`Deleted API key for ${providerId} from iOS keychain`)
     } else {
-      const platformType = getPlatformType()
-
-      if (platformType === 'mobile') {
-        await keychainDelete(key)
-        console.log(`Deleted API key for ${providerId} from mobile keychain`)
-      } else {
-        await keyringDelete(SERVICE_NAME, key)
-        console.log(`Deleted API key for ${providerId} from system keyring`)
-      }
+      await keyringDelete(SERVICE_NAME, key)
+      console.log(`Deleted API key for ${providerId} from system keyring`)
     }
   } catch (error) {
     console.error(`Failed to delete API key for provider ${providerId}:`, error)
@@ -213,19 +213,14 @@ export async function hasApiKey(providerId: string): Promise<boolean> {
   }
 
   try {
-    if (isDev) {
-      await ensureDevInitialized()
-      return key in devKeysData
+    if (shouldUseFileStorage()) {
+      await ensureFileStorageInitialized()
+      return key in fileKeysData
+    } else if (isIOS()) {
+      const apiKey = await iosKeychainGet(key)
+      return apiKey !== null && apiKey !== undefined && apiKey.trim() !== ''
     } else {
-      const platformType = getPlatformType()
-      let apiKey: string | null
-
-      if (platformType === 'mobile') {
-        apiKey = await keychainGet(key)
-      } else {
-        apiKey = await keyringGet(SERVICE_NAME, key)
-      }
-
+      const apiKey = await keyringGet(SERVICE_NAME, key)
       return apiKey !== null && apiKey !== undefined && apiKey.trim() !== ''
     }
   } catch (error) {
