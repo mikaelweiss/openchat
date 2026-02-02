@@ -55,29 +55,27 @@ Update version in all three locations (must match):
 2. `src-tauri/Cargo.toml` → `version = "x.y.z"`
 3. `src-tauri/tauri.conf.json` → `"version": "x.y.z"`
 
-Also increment the build number in `src-tauri/gen/apple/open-chat_iOS/Info.plist`:
-- `CFBundleVersion` → increment each upload (1, 2, 3, etc.)
+Also increment the build number in `src-tauri/tauri.conf.json`:
+- `bundle.iOS.bundleVersion` → increment each upload ("1", "2", "3", etc.)
 
-> **Note:** The version is what users see (e.g., 0.2.3). The build number is internal and must be unique per upload. If a build is rejected and you re-upload, increment the build number but keep the same version. iOS and macOS have separate Info.plist files with separate build numbers.
+> **Note:** The version is what users see (e.g., 0.2.3). The build number is internal and must be unique per upload. If a build is rejected and you re-upload, increment the build number but keep the same version.
 
 ### Step 2: Build the IPA
 
-Option A - **Via Xcode (Recommended)**:
-1. Open project: `bun tauri ios open`
-2. Select **Any iOS Device (arm64)** as destination
-3. **Product** → **Archive**
-4. When complete, click **Distribute App** → **App Store Connect** → **Upload**
-
-Option B - **Via CLI + Transporter**:
 ```bash
 bun tauri ios build --export-method app-store-connect
 ```
-Then open Transporter and drag in the IPA from:
-```
-src-tauri/gen/apple/build/arm64/Open Chat.ipa
-```
 
-### Step 3: Configure in App Store Connect
+### Step 3: Upload via Transporter
+
+1. Open **Transporter** (download from Mac App Store if needed)
+2. Drag in the IPA from:
+   ```
+   src-tauri/gen/apple/build/arm64/Open Chat.ipa
+   ```
+3. Click **Deliver**
+
+### Step 4: Configure in App Store Connect
 
 1. Go to your app in [App Store Connect](https://appstoreconnect.apple.com/apps)
 2. Click **+** next to iOS App to create a new version
@@ -85,7 +83,7 @@ src-tauri/gen/apple/build/arm64/Open Chat.ipa
 4. Fill in "What's New in This Version"
 5. Update screenshots if UI changed
 
-### Step 4: Submit for Review
+### Step 5: Submit for Review
 
 1. Ensure all sections show green checkmarks
 2. Click **Add for Review**
@@ -110,13 +108,7 @@ Review typically takes 24-48 hours.
 ## Troubleshooting
 
 ### "Missing required icon file" error
-The asset catalog isn't being bundled. Build via Xcode Archive instead of CLI, or ensure the AppIcon is set to Single Size mode with a 1024x1024 icon.
-
-### Xcode archive fails
-Check that:
-- Destination is set to "Any iOS Device (arm64)" not a simulator
-- Signing is configured with your Apple Developer account
-- Bundle ID matches what's registered in App Store Connect
+Ensure the AppIcon in Xcode is set to Single Size mode with a 1024x1024 icon (see One-Time Setup).
 
 ### Build rejected for privacy
 Ensure you have:

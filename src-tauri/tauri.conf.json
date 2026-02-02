@@ -63,7 +63,8 @@
       }
     },
     "iOS": {
-      "developmentTeam": "976SMHMA6R"
+      "developmentTeam": "976SMHMA6R",
+      "bundleVersion": "2"
     }
   }
 }

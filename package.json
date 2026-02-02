@@ -7,11 +7,12 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "dev:desktop": "tauri dev --config src-tauri/tauri.dev.conf.json",
-    "dev:ios": "tauri ios dev",
-    "dev:ios:simulator": "tauri ios dev 'iPhone 17 Pro'",
+    "dev:ios": "tauri ios dev --config src-tauri/tauri.ios.dev.conf.json",
+    "dev:ios:simulator": "tauri ios dev --config src-tauri/tauri.ios.dev.conf.json 'iPhone 17 Pro'",
     "dev:android": "tauri android dev",
     "build:ios": "tauri ios build",
-    "build:android": "tauri android build"
+    "build:android": "tauri android build",
+    "release:ios": "tauri ios build --export-method app-store-connect && open src-tauri/gen/apple/build/arm64"
   },
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",
