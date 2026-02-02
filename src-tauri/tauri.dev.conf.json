@@ -1,0 +1,10 @@
+{
+  "identifier": "dev.org.weisssolutions.openchat",
+  "app": {
+    "windows": [
+      {
+        "title": "Open Chat Dev"
+      }
+    ]
+  }
+}

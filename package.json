@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "dev:desktop": "tauri dev",
+    "dev:desktop": "tauri dev --config src-tauri/tauri.dev.conf.json",
     "dev:ios": "tauri ios dev",
     "dev:ios:simulator": "tauri ios dev 'iPhone 17 Pro'",
     "dev:android": "tauri android dev",
