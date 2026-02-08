@@ -24,7 +24,10 @@
       "WebSearch",
       "Skill(commit)",
       "mcp__plugin_linear_linear__list_issues",
-      "mcp__openchat-linear__openchat_linear_create_issues"
+      "mcp__openchat-linear__openchat_linear_create_issues",
+      "Bash(cargo tauri:*)",
+      "Bash(npx tauri:*)",
+      "Bash(bunx tauri:*)"
     ],
     "deny": []
   }
