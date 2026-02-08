@@ -23,7 +23,8 @@
       "mcp__context7__query-docs",
       "WebSearch",
       "Skill(commit)",
-      "mcp__plugin_linear_linear__list_issues"
+      "mcp__plugin_linear_linear__list_issues",
+      "mcp__openchat-linear__openchat_linear_create_issues"
     ],
     "deny": []
   }

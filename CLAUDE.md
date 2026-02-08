@@ -65,6 +65,11 @@ AI providers are managed through:
 - Responsive design with sidebar width persistence
 - Custom scrollbars and animations
 
+## Linear
+
+- Workspace: **Open Chat** (use `openchat_` prefixed tools)
+- Issue tracking via Linear, not GitHub Issues
+
 ## Important Notes
 
 ### Database Schema
