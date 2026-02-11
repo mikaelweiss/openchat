@@ -1,0 +1,68 @@
+#!/bin/bash
+set -e
+
+APP_NAME="open-chat"
+OUTPUT_DIR="./screenshots"
+mkdir -p "$OUTPUT_DIR"
+
+# Check the app is running
+if ! pgrep -x "open-chat" > /dev/null 2>&1; then
+    echo "Error: $APP_NAME is not running. Start it first with 'bun tauri dev'."
+    exit 1
+fi
+
+get_window_id() {
+    swift - <<'SWIFT'
+import CoreGraphics
+let windows = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as! [[String: Any]]
+for w in windows {
+    if let name = w["kCGWindowOwnerName"] as? String, name == "open-chat",
+       let layer = w["kCGWindowLayer"] as? Int, layer == 0,
+       let num = w["kCGWindowNumber"] as? Int {
+        print(num)
+        break
+    }
+}
+SWIFT
+}
+
+capture() {
+    local width=$1
+    local height=$2
+    local filename=$3
+
+    osascript -e "
+        tell application \"System Events\" to tell process \"$APP_NAME\"
+            set frontmost to true
+            set position of window 1 to {0, 25}
+            set size of window 1 to {$width, $height}
+        end tell
+    "
+    sleep 1
+
+    local wid
+    wid=$(get_window_id)
+    if [ -z "$wid" ]; then
+        echo "Error: Could not find window for $APP_NAME"
+        exit 1
+    fi
+
+    screencapture -l "$wid" -o "$OUTPUT_DIR/$filename"
+    echo "Captured $OUTPUT_DIR/$filename"
+}
+
+mkdir -p "$OUTPUT_DIR/2880x1800" "$OUTPUT_DIR/2560x1600"
+
+next_name() {
+    local dir="$OUTPUT_DIR/$1"
+    local n=1
+    while [ -f "$dir/screenshot_$n.png" ]; do
+        n=$((n + 1))
+    done
+    echo "screenshot_$n.png"
+}
+
+echo "Capturing App Store screenshots..."
+capture 1440 900 "2880x1800/$(next_name 2880x1800)"
+capture 1280 800 "2560x1600/$(next_name 2560x1600)"
+echo "Done! Screenshots saved to $OUTPUT_DIR/"
