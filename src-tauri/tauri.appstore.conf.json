@@ -5,6 +5,9 @@
     }
   },
   "bundle": {
-    "createUpdaterArtifacts": false
+    "createUpdaterArtifacts": false,
+    "macOS": {
+      "signingIdentity": "3rd Party Mac Developer Application"
+    }
   }
 }

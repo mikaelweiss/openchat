@@ -60,7 +60,7 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        CFBundleShortVersionString: 0.2.3
+        CFBundleShortVersionString: 1.0.0
         CFBundleVersion: "3"
     entitlements:
       path: open-chat_iOS/open-chat_iOS.entitlements

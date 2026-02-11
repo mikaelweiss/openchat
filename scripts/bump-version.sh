@@ -42,8 +42,13 @@ sed -i '' "/<key>CFBundleShortVersionString<\/key>/{n;s/<string>[0-9]*\.[0-9]*\.
 echo "  updated src-tauri/gen/apple/open-chat_iOS/Info.plist"
 
 # 6. src-tauri/gen/apple/open-chat.xcodeproj/project.pbxproj (marketing version only)
-sed -i '' "s/MARKETING_VERSION = [0-9]*\.[0-9]*\.[0-9]*/MARKETING_VERSION = $VERSION/g" "$ROOT/src-tauri/gen/apple/open-chat.xcodeproj/project.pbxproj"
-echo "  updated src-tauri/gen/apple/open-chat.xcodeproj/project.pbxproj"
+PBXPROJ="$ROOT/src-tauri/gen/apple/open-chat.xcodeproj/project.pbxproj"
+if [ -f "$PBXPROJ" ]; then
+    sed -i '' "s/MARKETING_VERSION = [0-9]*\.[0-9]*\.[0-9]*/MARKETING_VERSION = $VERSION/g" "$PBXPROJ"
+    echo "  updated project.pbxproj"
+else
+    echo "  skipped project.pbxproj (not present, will be set at build time)"
+fi
 
 # 7. Update Cargo.lock
 cd "$ROOT/src-tauri" && cargo generate-lockfile 2>/dev/null && cd "$ROOT"

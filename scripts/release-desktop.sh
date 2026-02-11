@@ -65,6 +65,9 @@ echo "==> Building macOS universal app..."
 cd "$ROOT"
 bun tauri build --config src-tauri/tauri.appstore.conf.json --bundles app --target universal-apple-darwin 2>&1
 
+echo "==> Fixing file permissions..."
+chmod -R a+r "$APP_PATH"
+
 echo "==> Updating app bundle build number..."
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $MACOS_BUILD" "$APP_PATH/Contents/Info.plist"
 
