@@ -11,8 +11,16 @@ settingGroups:
   app:
     base:
       PRODUCT_NAME: Open Chat
-      PRODUCT_BUNDLE_IDENTIFIER: org.weisssolutions.openchat
       DEVELOPMENT_TEAM: 976SMHMA6R
+    configs:
+      debug:
+        PRODUCT_BUNDLE_IDENTIFIER: org.weisssolutions.openchat.dev
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIconDev
+        INFOPLIST_KEY_CFBundleDisplayName: Open Chat Dev
+      release:
+        PRODUCT_BUNDLE_IDENTIFIER: org.weisssolutions.openchat
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        INFOPLIST_KEY_CFBundleDisplayName: Open Chat
 targetTemplates:
   app:
     type: application
