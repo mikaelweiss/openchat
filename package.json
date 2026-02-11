@@ -25,7 +25,7 @@
     "@tauri-apps/plugin-shell": "^2.3.4",
     "@tauri-apps/plugin-sql": "^2.3.1",
     "@tauri-apps/plugin-store": "^2.4.2",
-    "@tauri-apps/plugin-updater": "~2.9.0",
+    "@tauri-apps/plugin-updater": "2.10.0",
     "@telemetrydeck/sdk": "^2.0.4",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
