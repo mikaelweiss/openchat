@@ -160,22 +160,7 @@ export default function MobileSettings({ onBack }: MobileSettingsProps) {
             <div className="flex items-center justify-between mb-3 px-1">
               <h2 className="text-sm font-semibold text-muted-foreground">PROVIDERS</h2>
               <button
-                onClick={() => {
-                  if (demoMode) {
-                    // @ts-ignore
-                    if (window.showToast) {
-                      // @ts-ignore
-                      window.showToast({
-                        type: 'info',
-                        title: 'Demo Mode',
-                        message: 'Adding providers is not supported in demo mode',
-                        duration: 3000
-                      })
-                    }
-                    return
-                  }
-                  setShowAddProvider(true)
-                }}
+                onClick={() => setShowAddProvider(true)}
                 className="flex items-center gap-1 text-sm text-primary"
               >
                 <Plus className="h-4 w-4" />

@@ -235,7 +235,7 @@ export default function SettingsModal({ isOpen, onClose, initialSection = 'gener
           {/* Tab Content */}
           <div className="flex-1 p-6 overflow-y-auto min-h-0">
             {activeTab === 'general' && <GeneralSettings theme={theme} setTheme={handleThemeChange} sendKey={sendKey} setSendKey={handleSendKeyChange} showPricing={showPricing} setShowPricing={handleShowPricingChange} showConversationSettings={showConversationSettings} setShowConversationSettings={handleShowConversationSettingsChange} globalHotkey={globalHotkey} setGlobalHotkey={handleGlobalHotkeyChange} onRestartOnboarding={handleRestartOnboarding} titleGenerationModel={titleGenerationModel} setTitleGenerationModel={handleTitleGenerationModelChange} providers={providers} showDockIcon={showDockIcon} setShowDockIcon={handleShowDockIconChange} demoMode={demoMode} setDemoMode={handleDemoModeChange} />}
-            {activeTab === 'models' && <ModelsSettings providers={providers} onToggleModel={handleToggleModel} onCapabilityToggle={handleCapabilityToggle} onAddProvider={async (name, endpoint, apiKey, isLocal) => await addProvider({ name, endpoint, apiKey, isLocal })} onUpdateProvider={async (providerId, updates) => await updateProvider(providerId, updates)} onRemoveProvider={removeProvider} onRefreshModels={refreshProviderModels} demoMode={demoMode} />}
+            {activeTab === 'models' && <ModelsSettings providers={providers} onToggleModel={handleToggleModel} onCapabilityToggle={handleCapabilityToggle} onAddProvider={async (name, endpoint, apiKey, isLocal) => await addProvider({ name, endpoint, apiKey, isLocal })} onUpdateProvider={async (providerId, updates) => await updateProvider(providerId, updates)} onRemoveProvider={removeProvider} onRefreshModels={refreshProviderModels} />}
             {activeTab === 'search' && <SearchSettings />}
             {activeTab === 'about' && <AboutSettings />}
           </div>
@@ -669,10 +669,9 @@ interface ModelsSettingsProps {
   onUpdateProvider: (providerId: string, updates: { apiKey?: string }) => Promise<void>
   onRemoveProvider: (providerId: string) => Promise<void>
   onRefreshModels: (providerId: string) => Promise<void>
-  demoMode?: boolean
 }
 
-function ModelsSettings({ providers: providersData, onToggleModel, onCapabilityToggle, onAddProvider, onUpdateProvider, onRemoveProvider, onRefreshModels, demoMode }: ModelsSettingsProps) {
+function ModelsSettings({ providers: providersData, onToggleModel, onCapabilityToggle, onAddProvider, onUpdateProvider, onRemoveProvider, onRefreshModels }: ModelsSettingsProps) {
   const [expandedProviders, setExpandedProviders] = useState<Set<string>>(new Set())
   const [showApiKeyModal, setShowApiKeyModal] = useState<string | null>(null)
   const [newApiKey, setNewApiKey] = useState('')
@@ -1311,22 +1310,7 @@ function ModelsSettings({ providers: providersData, onToggleModel, onCapabilityT
           </p>
         </div>
         <button
-          onClick={() => {
-            if (demoMode) {
-              // @ts-ignore
-              if (window.showToast) {
-                // @ts-ignore
-                window.showToast({
-                  type: 'info',
-                  title: 'Demo Mode',
-                  message: 'Adding providers is not supported in demo mode',
-                  duration: 3000
-                })
-              }
-              return
-            }
-            setShowAddProvider(true)
-          }}
+          onClick={() => setShowAddProvider(true)}
           className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
         >
           <Plus className="h-4 w-4" />

@@ -4,6 +4,7 @@ import { saveApiKey, getApiKey, deleteApiKey, hasApiKey } from '../utils/secureS
 import { Provider, AddProviderRequest, UpdateProviderRequest } from '../types/provider'
 import { applyTheme, setupSystemThemeListener } from '../shared/theme'
 import { modelsService } from '../services/modelsService'
+import { DEMO_PROVIDER } from '../services/demoMode'
 import { useAppStore } from '../stores/appStore'
 import * as windowManager from '../utils/windowManager'
 import { telemetryService } from '../services/telemetryService'
@@ -71,7 +72,6 @@ const settingsManager = new SettingsManager()
 export function useSettings() {
   const [, forceUpdate] = useState({})
   const updateProviders = useAppStore((state) => state.updateProviders)
-  const loadProviders = useAppStore((state) => state.loadProviders)
   
   // Subscribe to settings manager updates
   useEffect(() => {
@@ -201,11 +201,6 @@ export function useSettings() {
         updateProviders((value as Record<string, Provider>) || {})
       }
 
-      // Reload providers when demo mode changes
-      if (key === 'demoMode') {
-        await loadProviders()
-      }
-      
       settingsManager.updateSettings(newSettings)
       
       // Notify other windows about settings changes
@@ -271,6 +266,13 @@ export function useSettings() {
 
   const handleDemoModeChange = async (enabled: boolean) => {
     await updateSetting('demoMode', enabled)
+    if (enabled) {
+      await updateProviderSetting(DEMO_PROVIDER.id, DEMO_PROVIDER)
+    } else {
+      const newProviders = { ...settingsManager.settings.providers }
+      delete newProviders[DEMO_PROVIDER.id]
+      await updateSetting('providers', newProviders)
+    }
   }
 
   const handleToggleModel = async (providerId: string, modelName: string, enabled: boolean) => {

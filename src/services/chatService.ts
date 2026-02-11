@@ -2,7 +2,8 @@ import { type CreateMessageInput, messageStore } from '../shared/messageStore'
 import { functionCallingService } from './functionCallingService'
 import { tokenService } from './tokenService'
 import { convertToolsToAnthropicFormat } from '../types/search'
-import { DEMO_PROVIDER, getRandomFunFact } from './demoMode'
+import { getRandomFunFact } from './demoMode'
+import { settings, SETTINGS_KEYS } from '../shared/settingsStore'
 
 interface OpenAIMessage {
   role: 'system' | 'user' | 'assistant' | 'tool'
@@ -305,7 +306,8 @@ class ChatService {
   }): Promise<CreateMessageInput> {
 
     // Demo mode: return a fun fact instead of making an API call
-    if (modelConfig.provider === DEMO_PROVIDER.id) {
+    const demoMode = await settings.get<boolean>(SETTINGS_KEYS.DEMO_MODE) || false
+    if (demoMode) {
       const funFact = getRandomFunFact()
 
       // Wait 1 second before streaming

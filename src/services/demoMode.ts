@@ -2,7 +2,7 @@ import { Provider } from '../types/provider'
 
 export const DEMO_PROVIDER: Provider = {
   id: 'demo',
-  name: 'Open Chat Demo Provider',
+  name: 'Demo',
   endpoint: '',
   models: ['demo-v1'],
   enabledModels: ['demo-v1'],
@@ -10,7 +10,7 @@ export const DEMO_PROVIDER: Provider = {
     'demo-v1': { vision: false, audio: false, files: false, multimodal: false, image: false, thinking: false, tools: false, webSearch: false }
   },
   connected: true,
-  isLocal: true,
+  isLocal: false,
   hasApiKey: false
 }
 
