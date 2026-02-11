@@ -7,19 +7,35 @@ interface HotkeyScreenProps {
   onBack: () => void
 }
 
+const isMac = navigator.platform.toLowerCase().includes('mac')
+
+const presetHotkeys = [
+  { value: isMac ? 'Command+Shift+O' : 'Control+Shift+O' },
+  { value: isMac ? 'Command+Alt+C' : 'Control+Alt+C' },
+  { value: isMac ? 'Command+Shift+Space' : 'Control+Shift+Space' },
+  { value: 'F1' },
+]
+
+function formatHotkeyDisplay(hotkey: string): string {
+  if (!hotkey || !hotkey.trim()) return ''
+  return hotkey.split('+').map(key => {
+    switch (key.toLowerCase()) {
+      case 'control': case 'ctrl': return '^'
+      case 'command': case 'cmd': return '⌘'
+      case 'alt': return '⌥'
+      case 'shift': return '⇧'
+      case 'space': return 'Space'
+      default: return key.charAt(0).toUpperCase() + key.slice(1).toLowerCase()
+    }
+  }).join(' ')
+}
+
 export default function HotkeyScreen({ onNext, onBack }: HotkeyScreenProps) {
   const { globalHotkey, handleGlobalHotkeyChange } = useSettings()
   const [hotkey, setHotkey] = useState(globalHotkey || '')
   const [isRecording, setIsRecording] = useState(false)
-  const [recordedKeys, setRecordedKeys] = useState<string[]>([])
+  const [capturedKeys, setCapturedKeys] = useState<string[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
-
-  const presetHotkeys = [
-    { label: 'Cmd+Shift+O', value: 'CommandOrControl+Shift+O' },
-    { label: 'Cmd+Alt+C', value: 'CommandOrControl+Alt+C' },
-    { label: 'Ctrl+Shift+Space', value: 'CommandOrControl+Shift+Space' },
-    { label: 'F1', value: 'F1' },
-  ]
 
   useEffect(() => {
     if (!isRecording) return
@@ -27,44 +43,64 @@ export default function HotkeyScreen({ onNext, onBack }: HotkeyScreenProps) {
     const handleKeyDown = (e: KeyboardEvent) => {
       e.preventDefault()
       e.stopPropagation()
-      
+
       const keys = []
-      if (e.metaKey || e.ctrlKey) keys.push(e.metaKey ? 'Cmd' : 'Ctrl')
+      if (e.ctrlKey) keys.push('Control')
+      if (e.metaKey) keys.push('Command')
       if (e.altKey) keys.push('Alt')
       if (e.shiftKey) keys.push('Shift')
-      
-      // Add the main key
-      if (e.key !== 'Meta' && e.key !== 'Control' && e.key !== 'Alt' && e.key !== 'Shift') {
-        let keyName = e.key
-        if (e.key === ' ') keyName = 'Space'
-        else if (e.key.length === 1) keyName = e.key.toUpperCase()
-        keys.push(keyName)
+
+      // Add the main key if it's not a modifier
+      if (!['Control', 'Meta', 'Alt', 'Shift'].includes(e.key)) {
+        if (e.key === ' ') {
+          keys.push('Space')
+        } else if (e.code.startsWith('Key')) {
+          keys.push(e.code.replace('Key', ''))
+        } else if (e.key.length === 1) {
+          keys.push(e.key.toUpperCase())
+        } else {
+          keys.push(e.key)
+        }
       }
-      
-      setRecordedKeys(keys)
-      
-      // If we have at least 2 keys (modifier + main key), stop recording
-      if (keys.length >= 2) {
-        const hotkeyString = keys.join('+').replace('Cmd', 'CommandOrControl').replace('Ctrl', 'CommandOrControl')
-        setHotkey(hotkeyString)
-        setIsRecording(false)
-        setRecordedKeys([])
+
+      if (keys.length > 0) {
+        setCapturedKeys(keys)
+
+        // Auto-save if we have at least one modifier + one key
+        const modifiers = keys.filter(k => ['Control', 'Command', 'Alt', 'Shift'].includes(k))
+        const nonModifiers = keys.filter(k => !['Control', 'Command', 'Alt', 'Shift'].includes(k))
+
+        if (modifiers.length > 0 && nonModifiers.length > 0) {
+          const hotkeyString = keys.join('+')
+          setHotkey(hotkeyString)
+          setIsRecording(false)
+          setCapturedKeys([])
+        }
       }
     }
 
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
+    const handleKeyUp = (e: KeyboardEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+    }
+
+    document.addEventListener('keydown', handleKeyDown, true)
+    document.addEventListener('keyup', handleKeyUp, true)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown, true)
+      document.removeEventListener('keyup', handleKeyUp, true)
+    }
   }, [isRecording])
 
   const handleStartRecording = () => {
     setIsRecording(true)
-    setRecordedKeys([])
+    setCapturedKeys([])
     inputRef.current?.focus()
   }
 
   const handleStopRecording = () => {
     setIsRecording(false)
-    setRecordedKeys([])
+    setCapturedKeys([])
   }
 
   const handlePresetSelect = (presetValue: string) => {
@@ -78,9 +114,9 @@ export default function HotkeyScreen({ onNext, onBack }: HotkeyScreenProps) {
     onNext()
   }
 
-  const displayHotkey = isRecording && recordedKeys.length > 0 
-    ? recordedKeys.join('+')
-    : hotkey.replace('CommandOrControl', navigator.platform.toLowerCase().includes('mac') ? 'Cmd' : 'Ctrl')
+  const displayHotkey = isRecording && capturedKeys.length > 0
+    ? capturedKeys.join(' + ')
+    : formatHotkeyDisplay(hotkey)
 
   return (
     <div className="flex-1 flex flex-col p-8">
@@ -145,7 +181,7 @@ export default function HotkeyScreen({ onNext, onBack }: HotkeyScreenProps) {
                       : 'border-border hover:border-primary/50 text-foreground hover:bg-accent'
                   }`}
                 >
-                  {preset.label}
+                  {formatHotkeyDisplay(preset.value)}
                 </button>
               ))}
             </div>
