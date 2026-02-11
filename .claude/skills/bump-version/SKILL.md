@@ -1,23 +1,22 @@
 ---
 name: bump-version
-description: Bump the app version across all config files (package.json, Cargo.toml, tauri.conf.json, Xcode). Use when the user says "bump version", "update version", "new release", or invokes /bump-version.
+description: Bump the app marketing version across all config files (package.json, Cargo.toml, tauri.conf.json, Xcode). Use when the user says "bump version", "update version", "new release", or invokes /bump-version.
 user-invocable: true
 ---
 
 # Bump Version
 
-Update the version number across all config files in the project.
+Update the marketing version number across all config files in the project. Build numbers are managed separately per-platform by the release scripts.
 
 ## Process
 
-1. Determine the new version and build number:
+1. Determine the new version:
    - If the user provides a version (e.g. "bump to 0.3.0"), use it
    - If the user says "patch", "minor", or "major", read the current version from `package.json` and calculate the new one
-   - Ask the user for the build number (integer for iOS App Store). The build number must always increase — check the current value in `src-tauri/gen/apple/project.yml` on the `CFBundleVersion` line and suggest current + 1
 
 2. Run the bump script:
    ```bash
-   ./scripts/bump-version.sh <version> <build-number>
+   ./scripts/bump-version.sh <version>
    ```
 
 3. Verify the changes by running:
@@ -29,7 +28,7 @@ Update the version number across all config files in the project.
    grep "MARKETING_VERSION" src-tauri/gen/apple/open-chat.xcodeproj/project.pbxproj
    ```
 
-4. Report the results to the user.
+4. Report the results to the user. Remind them that build numbers are bumped automatically by `/release-ios` and `/release-desktop`.
 
 ## Files Updated
 
@@ -37,7 +36,13 @@ The script updates these files:
 - `package.json` — `"version"`
 - `src-tauri/tauri.conf.json` — `"version"`
 - `src-tauri/Cargo.toml` — `version` (package section only)
-- `src-tauri/gen/apple/project.yml` — `CFBundleShortVersionString` + `CFBundleVersion`
-- `src-tauri/gen/apple/open-chat_iOS/Info.plist` — `CFBundleShortVersionString` + `CFBundleVersion`
-- `src-tauri/gen/apple/open-chat.xcodeproj/project.pbxproj` — `MARKETING_VERSION` + `CURRENT_PROJECT_VERSION`
+- `src-tauri/gen/apple/project.yml` — `CFBundleShortVersionString`
+- `src-tauri/gen/apple/open-chat_iOS/Info.plist` — `CFBundleShortVersionString`
+- `src-tauri/gen/apple/open-chat.xcodeproj/project.pbxproj` — `MARKETING_VERSION`
 - `src-tauri/Cargo.lock` — regenerated
+
+## Build Numbers
+
+Build numbers are **not** updated by this script. They are managed per-platform:
+- **iOS build**: Tracked in `project.yml`, `tauri.conf.json` bundleVersion, iOS `Info.plist`, `project.pbxproj`. Bumped by `release-ios.sh`.
+- **macOS build**: Tracked in `src-tauri/Info.plist` CFBundleVersion. Bumped by `release-desktop.sh`.
