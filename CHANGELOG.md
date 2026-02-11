@@ -2,6 +2,10 @@
 
 All notable changes to Open Chat will be documented in this file.
 
+## [Unreleased]
+### Fixed
+- Fixed issue where closing the mini chat window would focus the main app window instead of returning to the previously active application
+
 ## [0.2.3] - 2026-02-01
 - Added web search
 

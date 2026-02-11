@@ -1,3 +1,5 @@
+#![allow(unexpected_cfgs)] // objc v0.2 macros trigger this
+
 mod ollama;
 mod system_info;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
@@ -25,6 +27,48 @@ use std::sync::Mutex;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 static REGISTERED_SHORTCUTS: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
+#[cfg(target_os = "macos")]
+static PREVIOUS_APP_PID: Mutex<Option<i32>> = Mutex::new(None);
+
+#[cfg(target_os = "macos")]
+fn save_frontmost_app() {
+    use objc::{class, msg_send, sel, sel_impl};
+    use objc::runtime::Object;
+    unsafe {
+        let workspace: *mut Object = msg_send![class!(NSWorkspace), sharedWorkspace];
+        let frontmost: *mut Object = msg_send![workspace, frontmostApplication];
+        if frontmost.is_null() {
+            return;
+        }
+        let pid: i32 = msg_send![frontmost, processIdentifier];
+        let our_pid = std::process::id() as i32;
+        if pid != our_pid {
+            if let Ok(mut prev) = PREVIOUS_APP_PID.lock() {
+                *prev = Some(pid);
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn activate_previous_app() {
+    use objc::{class, msg_send, sel, sel_impl};
+    use objc::runtime::Object;
+    if let Ok(mut prev) = PREVIOUS_APP_PID.lock() {
+        if let Some(pid) = prev.take() {
+            unsafe {
+                let app: *mut Object = msg_send![
+                    class!(NSRunningApplication),
+                    runningApplicationWithProcessIdentifier: pid
+                ];
+                if !app.is_null() {
+                    let _: bool = msg_send![app, activateWithOptions: 2usize];
+                }
+            }
+        }
+    }
+}
+
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 #[tauri::command]
 async fn toggle_mini_window(app: tauri::AppHandle) -> Result<bool, String> {
@@ -35,10 +79,14 @@ async fn toggle_mini_window(app: tauri::AppHandle) -> Result<bool, String> {
             .map_err(|e| format!("Failed to check window focus: {}", e))?;
 
         if is_visible && is_focused {
+            #[cfg(target_os = "macos")]
+            activate_previous_app();
             window.hide()
                 .map_err(|e| format!("Failed to hide mini window: {}", e))?;
             Ok(false)
         } else {
+            #[cfg(target_os = "macos")]
+            save_frontmost_app();
             window.show()
                 .map_err(|e| format!("Failed to show mini window: {}", e))?;
             window.set_focus()
@@ -46,6 +94,8 @@ async fn toggle_mini_window(app: tauri::AppHandle) -> Result<bool, String> {
             Ok(true)
         }
     } else {
+        #[cfg(target_os = "macos")]
+        save_frontmost_app();
         let mini_window = WebviewWindowBuilder::new(
             &app,
             "mini-chat",
@@ -97,6 +147,8 @@ async fn toggle_mini_window(app: tauri::AppHandle) -> Result<bool, String> {
 #[tauri::command]
 async fn close_mini_window(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("mini-chat") {
+        #[cfg(target_os = "macos")]
+        activate_previous_app();
         window.close()
             .map_err(|e| format!("Failed to close mini window: {}", e))?;
     }
