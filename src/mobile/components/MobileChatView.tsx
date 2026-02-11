@@ -441,7 +441,7 @@ export default function MobileChatView({ conversationId, onSelectConversation }:
       <MobileMessageInput
         onSend={handleSend}
         onCancel={handleCancel}
-        disabled={!conversationId || !hasModel}
+        disabled={!conversationId}
         isLoading={isLoading && isCurrentConversationWaiting}
         noProvider={!hasModel}
         modelCapabilities={currentModelCapabilities}

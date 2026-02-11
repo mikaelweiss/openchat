@@ -113,7 +113,17 @@ function MobileApp() {
     if (!selectedConversationId) return
 
     const messages = useAppStore.getState().getMessages(selectedConversationId)
-    if (messages.length < 1) return
+    if (messages.length < 1) {
+      if ((window as any).showToast) {
+        (window as any).showToast({
+          type: 'info',
+          title: 'Already a fresh conversation',
+          message: 'Start typing to begin',
+          duration: 2000
+        })
+      }
+      return
+    }
 
     let provider = ''
     let model = ''

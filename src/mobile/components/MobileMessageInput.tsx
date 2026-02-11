@@ -88,6 +88,17 @@ export default function MobileMessageInput({
     if (isLoading) {
       onCancel?.()
     } else if ((message.trim() || attachments.length > 0) && !disabled) {
+      if (noProvider) {
+        if ((window as any).showToast) {
+          (window as any).showToast({
+            type: 'info',
+            title: 'No provider configured',
+            message: 'Open Settings to add an AI provider',
+            duration: 4000
+          })
+        }
+        return
+      }
       onSend(
         message,
         attachments.length > 0 ? attachments : undefined,
@@ -369,17 +380,17 @@ export default function MobileMessageInput({
           <textarea
             ref={textareaRef}
             value={message}
-            onChange={e => !disabled && setMessage(e.target.value)}
+            onChange={e => setMessage(e.target.value)}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
             placeholder={noProvider ? 'Add a provider to start chatting...' : selectedPlaceholder}
             className={clsx(
               'w-full resize-none bg-transparent px-4 py-3 min-h-[48px] max-h-[120px] focus:outline-none text-foreground',
               'font-medium placeholder:text-muted-foreground',
-              disabled && 'text-muted-foreground'
+              disabled && !noProvider && 'text-muted-foreground'
             )}
             rows={1}
-            disabled={disabled}
+            disabled={disabled && !noProvider}
           />
         </div>
 

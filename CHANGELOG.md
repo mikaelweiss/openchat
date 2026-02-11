@@ -13,6 +13,8 @@ All notable changes to Open Chat will be documented in this file.
 
 ### Fixed
 - Fixed issue where closing the mini chat window would focus the main app window instead of returning to the previously active application
+- Fixed issue where chat input was unresponsive on mobile when no AI provider was configured
+- Fixed issue where the new chat button did nothing on mobile when the current conversation was empty
 
 ## [0.2.3] - 2026-02-01
 - Added web search
