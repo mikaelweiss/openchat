@@ -157,6 +157,7 @@ export default function SettingsModal({ isOpen, onClose, initialSection = 'gener
     showConversationSettings,
     providers,
     titleGenerationModel,
+    showDockIcon,
     handleThemeChange,
     handleSendKeyChange,
     handleGlobalHotkeyChange,
@@ -166,6 +167,7 @@ export default function SettingsModal({ isOpen, onClose, initialSection = 'gener
     handleCapabilityToggle,
     handleOnboardingCompletion,
     handleTitleGenerationModelChange,
+    handleShowDockIconChange,
     addProvider,
     updateProvider,
     removeProvider,
@@ -230,7 +232,7 @@ export default function SettingsModal({ isOpen, onClose, initialSection = 'gener
 
           {/* Tab Content */}
           <div className="flex-1 p-6 overflow-y-auto min-h-0">
-            {activeTab === 'general' && <GeneralSettings theme={theme} setTheme={handleThemeChange} sendKey={sendKey} setSendKey={handleSendKeyChange} showPricing={showPricing} setShowPricing={handleShowPricingChange} showConversationSettings={showConversationSettings} setShowConversationSettings={handleShowConversationSettingsChange} globalHotkey={globalHotkey} setGlobalHotkey={handleGlobalHotkeyChange} onRestartOnboarding={handleRestartOnboarding} titleGenerationModel={titleGenerationModel} setTitleGenerationModel={handleTitleGenerationModelChange} providers={providers} />}
+            {activeTab === 'general' && <GeneralSettings theme={theme} setTheme={handleThemeChange} sendKey={sendKey} setSendKey={handleSendKeyChange} showPricing={showPricing} setShowPricing={handleShowPricingChange} showConversationSettings={showConversationSettings} setShowConversationSettings={handleShowConversationSettingsChange} globalHotkey={globalHotkey} setGlobalHotkey={handleGlobalHotkeyChange} onRestartOnboarding={handleRestartOnboarding} titleGenerationModel={titleGenerationModel} setTitleGenerationModel={handleTitleGenerationModelChange} providers={providers} showDockIcon={showDockIcon} setShowDockIcon={handleShowDockIconChange} />}
             {activeTab === 'models' && <ModelsSettings providers={providers} onToggleModel={handleToggleModel} onCapabilityToggle={handleCapabilityToggle} onAddProvider={async (name, endpoint, apiKey, isLocal) => await addProvider({ name, endpoint, apiKey, isLocal })} onUpdateProvider={async (providerId, updates) => await updateProvider(providerId, updates)} onRemoveProvider={removeProvider} onRefreshModels={refreshProviderModels} />}
             {activeTab === 'search' && <SearchSettings />}
             {activeTab === 'about' && <AboutSettings />}
@@ -391,7 +393,7 @@ function HotkeyCapture({ value, onChange, onClear }: { value: string, onChange: 
   )
 }
 
-function GeneralSettings({ theme, setTheme, sendKey, setSendKey, showPricing, setShowPricing, showConversationSettings, setShowConversationSettings, globalHotkey, setGlobalHotkey, onRestartOnboarding, titleGenerationModel, setTitleGenerationModel, providers }: any) {
+function GeneralSettings({ theme, setTheme, sendKey, setSendKey, showPricing, setShowPricing, showConversationSettings, setShowConversationSettings, globalHotkey, setGlobalHotkey, onRestartOnboarding, titleGenerationModel, setTitleGenerationModel, providers, showDockIcon, setShowDockIcon }: any) {
   const handleClearHotkey = () => {
     setGlobalHotkey('')
   }
@@ -447,9 +449,26 @@ function GeneralSettings({ theme, setTheme, sendKey, setSendKey, showPricing, se
               onChange={setTheme}
             />
           </div>
+          <div className="flex items-start gap-3">
+            <input
+              type="checkbox"
+              id="showDockIcon"
+              checked={showDockIcon}
+              onChange={(e) => setShowDockIcon(e.target.checked)}
+              className="mt-1 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+            />
+            <div className="flex-1">
+              <label htmlFor="showDockIcon" className="text-sm font-medium cursor-pointer">
+                Show dock icon
+              </label>
+              <p className="text-xs text-muted-foreground mt-1">
+                Keep the app icon visible in the dock. When disabled, the dock icon hides when you close the main window. You can always reopen from the menu bar icon.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
-      
+
       <div>
         <h3 className="text-lg font-medium mb-4">Usage & Pricing</h3>
         <div className="space-y-4">

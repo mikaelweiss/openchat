@@ -57,4 +57,5 @@ export const SETTINGS_KEYS = {
   USER_NAME: 'userName',
   HAS_SHOWN_INTRO: 'hasShownIntro',
   TITLE_GENERATION_MODEL: 'titleGenerationModel',
+  SHOW_DOCK_ICON: 'showDockIcon',
 } as const

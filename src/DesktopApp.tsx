@@ -18,8 +18,10 @@ import { ollamaService } from './services/ollamaService'
 import { check } from '@tauri-apps/plugin-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import { listen } from '@tauri-apps/api/event'
 import { open } from '@tauri-apps/plugin-shell'
 import { settings, SETTINGS_KEYS } from './shared/settingsStore'
+import { showMainWindow } from './utils/windowManager'
 
 function DesktopApp() {
   // Check if we're in mini window mode
@@ -254,8 +256,17 @@ function DesktopApp() {
     }
     
     window.addEventListener('openSettings' as any, handleOpenSettings)
+
+    // Also listen for Tauri event from tray menu
+    let unlisten: (() => void) | undefined
+    listen('open-settings', () => {
+      setSettingsOpen(true)
+      telemetryService.trackSettingsOpened('general')
+    }).then(fn => { unlisten = fn })
+
     return () => {
       window.removeEventListener('openSettings' as any, handleOpenSettings)
+      unlisten?.()
     }
   }, [])
   
@@ -457,7 +468,7 @@ function DesktopApp() {
   useKeyboardShortcuts({
     onNewChat: handleNewChat,
     onToggleSidebar: () => setSidebarOpen(!sidebarOpen),
-    onToggleSettings: isMiniWindow ? () => {} : handleToggleSettings,
+    onToggleSettings: isMiniWindow ? () => { showMainWindow().catch(console.error) } : handleToggleSettings,
     onToggleShortcuts: isMiniWindow ? () => {} : handleToggleShortcuts,
     onToggleModelSelector: isMiniWindow ? () => {} : handleToggleModelSelector,
     onFocusSearch: handleFocusSearch,

@@ -3,6 +3,14 @@
 All notable changes to Open Chat will be documented in this file.
 
 ## [Unreleased]
+### Added
+- Menu bar icon for quick access to mini chat window
+- Setting to toggle dock icon visibility
+- Pressing ⌘, in the mini chat window now opens the main app
+
+### Changed
+- Closing the main window now hides to menu bar instead of quitting
+
 ### Fixed
 - Fixed issue where closing the mini chat window would focus the main app window instead of returning to the previously active application
 

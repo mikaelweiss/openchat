@@ -13,7 +13,7 @@ fn greet(name: &str) -> String {
 }
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
-use tauri::{Manager, WebviewUrl, WebviewWindowBuilder, Position, LogicalPosition, AppHandle};
+use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder, Position, LogicalPosition, AppHandle};
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
@@ -29,6 +29,9 @@ static REGISTERED_SHORTCUTS: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
 #[cfg(target_os = "macos")]
 static PREVIOUS_APP_PID: Mutex<Option<i32>> = Mutex::new(None);
+
+#[cfg(target_os = "macos")]
+static SHOW_DOCK_ICON: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
 
 #[cfg(target_os = "macos")]
 fn save_frontmost_app() {
@@ -66,6 +69,26 @@ fn activate_previous_app() {
                 }
             }
         }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn set_activation_policy_accessory() {
+    use objc::{class, msg_send, sel, sel_impl};
+    use objc::runtime::Object;
+    unsafe {
+        let app: *mut Object = msg_send![class!(NSApplication), sharedApplication];
+        let _: () = msg_send![app, setActivationPolicy: 1i64]; // NSApplicationActivationPolicyAccessory = 1
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn set_activation_policy_regular() {
+    use objc::{class, msg_send, sel, sel_impl};
+    use objc::runtime::Object;
+    unsafe {
+        let app: *mut Object = msg_send![class!(NSApplication), sharedApplication];
+        let _: () = msg_send![app, setActivationPolicy: 0i64]; // NSApplicationActivationPolicyRegular = 0
     }
 }
 
@@ -151,6 +174,51 @@ async fn close_mini_window(app: tauri::AppHandle) -> Result<(), String> {
         activate_previous_app();
         window.close()
             .map_err(|e| format!("Failed to close mini window: {}", e))?;
+    }
+    Ok(())
+}
+
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+#[tauri::command]
+async fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    set_activation_policy_regular();
+
+    if let Some(window) = app.get_webview_window("main") {
+        window.unminimize()
+            .map_err(|e| format!("Failed to unminimize main window: {}", e))?;
+        window.show()
+            .map_err(|e| format!("Failed to show main window: {}", e))?;
+        window.set_focus()
+            .map_err(|e| format!("Failed to focus main window: {}", e))?;
+    } else {
+        let window = WebviewWindowBuilder::new(
+            &app,
+            "main",
+            WebviewUrl::App("index.html".into())
+        )
+        .title("Open Chat")
+        .inner_size(1200.0, 800.0)
+        .min_inner_size(800.0, 600.0)
+        .resizable(true)
+        .build()
+        .map_err(|e| format!("Failed to create main window: {}", e))?;
+        window.show()
+            .map_err(|e| format!("Failed to show main window: {}", e))?;
+        window.set_focus()
+            .map_err(|e| format!("Failed to focus main window: {}", e))?;
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+async fn set_dock_icon_visibility(visible: bool) -> Result<(), String> {
+    SHOW_DOCK_ICON.store(visible, std::sync::atomic::Ordering::Relaxed);
+    if visible {
+        set_activation_policy_regular();
+    } else {
+        set_activation_policy_accessory();
     }
     Ok(())
 }
@@ -258,22 +326,94 @@ pub fn run() {
 
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
-        builder.invoke_handler(tauri::generate_handler![
-            greet,
-            toggle_mini_window,
-            close_mini_window,
-            register_global_shortcut,
-            unregister_global_shortcut,
-            ollama::detect_ollama,
-            ollama::start_ollama,
-            ollama::stop_ollama,
-            ollama::discover_models,
-            system_info::get_system_info,
-            system_info::validate_model_system_compatibility,
-            search::tool_web_search
-        ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        builder
+            .setup(|app| {
+                use tauri::tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState};
+
+                use tauri::menu::{Menu, MenuItem};
+
+                let app_handle = app.handle().clone();
+                let tray_icon = tauri::image::Image::from_bytes(include_bytes!("../icons/swirl.png"))
+                    .expect("Failed to load tray icon");
+
+                let settings_item = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
+                let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+                let menu = Menu::with_items(app, &[&settings_item, &quit_item])?;
+
+                TrayIconBuilder::new()
+                    .icon(tray_icon)
+                    .tooltip("Open Chat")
+                    .menu(&menu)
+                    .show_menu_on_left_click(false)
+                    .on_menu_event(|app, event| match event.id.as_ref() {
+                        "settings" => {
+                            let handle = app.clone();
+                            tauri::async_runtime::spawn(async move {
+                                if let Err(e) = show_main_window(handle.clone()).await {
+                                    eprintln!("Failed to show main window: {}", e);
+                                    return;
+                                }
+                                // Wait for the window to be ready before emitting
+                                tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                                let _ = handle.emit("open-settings", ());
+                            });
+                        }
+                        "quit" => {
+                            app.exit(0);
+                        }
+                        _ => {}
+                    })
+                    .on_tray_icon_event(move |_tray, event| match event {
+                        TrayIconEvent::Click {
+                            button: MouseButton::Left,
+                            button_state: MouseButtonState::Up,
+                            ..
+                        } => {
+                            let handle = app_handle.clone();
+                            tauri::async_runtime::spawn(async move {
+                                if let Err(e) = toggle_mini_window(handle).await {
+                                    eprintln!("Failed to toggle mini window from tray: {}", e);
+                                }
+                            });
+                        }
+                        _ => {}
+                    })
+                    .build(app)?;
+
+                Ok(())
+            })
+            .on_window_event(|window, event| {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    if window.label() == "main" {
+                        api.prevent_close();
+                        let _ = window.hide();
+                        #[cfg(target_os = "macos")]
+                        {
+                            if !SHOW_DOCK_ICON.load(std::sync::atomic::Ordering::Relaxed) {
+                                set_activation_policy_accessory();
+                            }
+                        }
+                    }
+                }
+            })
+            .invoke_handler(tauri::generate_handler![
+                greet,
+                toggle_mini_window,
+                close_mini_window,
+                show_main_window,
+                set_dock_icon_visibility,
+                register_global_shortcut,
+                unregister_global_shortcut,
+                ollama::detect_ollama,
+                ollama::start_ollama,
+                ollama::stop_ollama,
+                ollama::discover_models,
+                system_info::get_system_info,
+                system_info::validate_model_system_compatibility,
+                search::tool_web_search
+            ])
+            .run(tauri::generate_context!())
+            .expect("error while running tauri application");
     }
 
     #[cfg(target_os = "ios")]

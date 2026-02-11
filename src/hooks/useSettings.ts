@@ -19,6 +19,7 @@ export interface AppSettings {
   hasCompletedOnboarding: boolean
   userName: string
   titleGenerationModel: string | null
+  showDockIcon: boolean
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -30,7 +31,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   hasCompletedOnboarding: false,
   userName: '',
   providers: {},
-  titleGenerationModel: null
+  titleGenerationModel: null,
+  showDockIcon: true
 }
 
 // Singleton settings manager to ensure all hook instances share the same state
@@ -107,6 +109,24 @@ export function useSettings() {
       return cleanup || undefined
     }
   }, [settingsManager.isLoading, settingsManager.settings.theme])
+
+  // Sync dock icon visibility setting to Rust on load
+  useEffect(() => {
+    if (!settingsManager.isLoading) {
+      const syncDockVisibility = async () => {
+        try {
+          const { platform } = await import('@tauri-apps/plugin-os')
+          if (platform() === 'macos') {
+            const { invoke } = await import('@tauri-apps/api/core')
+            await invoke('set_dock_icon_visibility', { visible: settingsManager.settings.showDockIcon })
+          }
+        } catch {
+          // Ignore - not on macOS or command not available
+        }
+      }
+      syncDockVisibility()
+    }
+  }, [settingsManager.isLoading])
 
   // Check API keys on mount and when providers change
   useEffect(() => {
@@ -537,6 +557,20 @@ export function useSettings() {
     await updateSetting('titleGenerationModel', model)
   }
 
+  const handleShowDockIconChange = async (show: boolean) => {
+    await updateSetting('showDockIcon', show)
+    // Apply dock visibility change immediately on macOS
+    try {
+      const { platform } = await import('@tauri-apps/plugin-os')
+      if (platform() === 'macos') {
+        const { invoke } = await import('@tauri-apps/api/core')
+        await invoke('set_dock_icon_visibility', { visible: show })
+      }
+    } catch (error) {
+      console.error('Failed to update dock visibility:', error)
+    }
+  }
+
   return {
     // Settings data (for direct access)
     settings: settingsManager.settings,
@@ -551,6 +585,7 @@ export function useSettings() {
     hasCompletedOnboarding: settingsManager.settings.hasCompletedOnboarding,
     userName: settingsManager.settings.userName,
     titleGenerationModel: settingsManager.settings.titleGenerationModel,
+    showDockIcon: settingsManager.settings.showDockIcon,
     
     // State
     isLoading: settingsManager.isLoading,
@@ -573,6 +608,7 @@ export function useSettings() {
     handleUserNameChange,
     handleOnboardingCompletion,
     handleTitleGenerationModelChange,
+    handleShowDockIconChange,
     
     // Provider management
     addProvider,

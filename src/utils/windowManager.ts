@@ -26,6 +26,18 @@ export async function closeMiniWindow(): Promise<void> {
 }
 
 /**
+ * Shows the main window (unhides it from dock/taskbar)
+ */
+export async function showMainWindow(): Promise<void> {
+  try {
+    await invoke<void>('show_main_window')
+  } catch (error) {
+    console.error('Failed to show main window:', error)
+    throw error
+  }
+}
+
+/**
  * Checks if we're currently running in the mini window
  * Uses consistent detection based on URL parameters
  */

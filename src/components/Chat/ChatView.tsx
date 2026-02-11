@@ -20,6 +20,8 @@ import { useSearchStore } from '../../stores/searchStore'
 import clsx from 'clsx'
 import EmptyState from '../EmptyState/EmptyState'
 import { getConversationModelDisplay } from '../../utils/conversationUtils'
+import Logo from '../../assets/Logo.svg'
+import { showMainWindow } from '../../utils/windowManager'
 
 interface ChatViewProps {
   conversationId?: number | 'pending' | null
@@ -1152,6 +1154,22 @@ const ChatView = forwardRef<ChatViewHandle, ChatViewProps>(function ChatView({ c
                 aria-label="Start new conversation"
               >
                 <Plus className="h-4 w-4" />
+              </button>
+            )}
+            {isMiniWindow && (
+              <button
+                onClick={async () => {
+                  try {
+                    await showMainWindow()
+                  } catch (error) {
+                    console.error('Failed to show main window:', error)
+                  }
+                }}
+                className="p-1.5 elegant-hover rounded-xl transition-all duration-200 hover:scale-105 hover:opacity-80"
+                title="Open main window"
+                aria-label="Open main window"
+              >
+                <img src={Logo} alt="Open Chat" className="h-5 w-5" />
               </button>
             )}
           </div>
