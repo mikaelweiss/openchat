@@ -158,11 +158,13 @@ export default function SettingsModal({ isOpen, onClose, initialSection = 'gener
     providers,
     titleGenerationModel,
     showDockIcon,
+    demoMode,
     handleThemeChange,
     handleSendKeyChange,
     handleGlobalHotkeyChange,
     handleShowPricingChange,
     handleShowConversationSettingsChange,
+    handleDemoModeChange,
     handleToggleModel,
     handleCapabilityToggle,
     handleOnboardingCompletion,
@@ -232,8 +234,8 @@ export default function SettingsModal({ isOpen, onClose, initialSection = 'gener
 
           {/* Tab Content */}
           <div className="flex-1 p-6 overflow-y-auto min-h-0">
-            {activeTab === 'general' && <GeneralSettings theme={theme} setTheme={handleThemeChange} sendKey={sendKey} setSendKey={handleSendKeyChange} showPricing={showPricing} setShowPricing={handleShowPricingChange} showConversationSettings={showConversationSettings} setShowConversationSettings={handleShowConversationSettingsChange} globalHotkey={globalHotkey} setGlobalHotkey={handleGlobalHotkeyChange} onRestartOnboarding={handleRestartOnboarding} titleGenerationModel={titleGenerationModel} setTitleGenerationModel={handleTitleGenerationModelChange} providers={providers} showDockIcon={showDockIcon} setShowDockIcon={handleShowDockIconChange} />}
-            {activeTab === 'models' && <ModelsSettings providers={providers} onToggleModel={handleToggleModel} onCapabilityToggle={handleCapabilityToggle} onAddProvider={async (name, endpoint, apiKey, isLocal) => await addProvider({ name, endpoint, apiKey, isLocal })} onUpdateProvider={async (providerId, updates) => await updateProvider(providerId, updates)} onRemoveProvider={removeProvider} onRefreshModels={refreshProviderModels} />}
+            {activeTab === 'general' && <GeneralSettings theme={theme} setTheme={handleThemeChange} sendKey={sendKey} setSendKey={handleSendKeyChange} showPricing={showPricing} setShowPricing={handleShowPricingChange} showConversationSettings={showConversationSettings} setShowConversationSettings={handleShowConversationSettingsChange} globalHotkey={globalHotkey} setGlobalHotkey={handleGlobalHotkeyChange} onRestartOnboarding={handleRestartOnboarding} titleGenerationModel={titleGenerationModel} setTitleGenerationModel={handleTitleGenerationModelChange} providers={providers} showDockIcon={showDockIcon} setShowDockIcon={handleShowDockIconChange} demoMode={demoMode} setDemoMode={handleDemoModeChange} />}
+            {activeTab === 'models' && <ModelsSettings providers={providers} onToggleModel={handleToggleModel} onCapabilityToggle={handleCapabilityToggle} onAddProvider={async (name, endpoint, apiKey, isLocal) => await addProvider({ name, endpoint, apiKey, isLocal })} onUpdateProvider={async (providerId, updates) => await updateProvider(providerId, updates)} onRemoveProvider={removeProvider} onRefreshModels={refreshProviderModels} demoMode={demoMode} />}
             {activeTab === 'search' && <SearchSettings />}
             {activeTab === 'about' && <AboutSettings />}
           </div>
@@ -393,7 +395,7 @@ function HotkeyCapture({ value, onChange, onClear }: { value: string, onChange: 
   )
 }
 
-function GeneralSettings({ theme, setTheme, sendKey, setSendKey, showPricing, setShowPricing, showConversationSettings, setShowConversationSettings, globalHotkey, setGlobalHotkey, onRestartOnboarding, titleGenerationModel, setTitleGenerationModel, providers, showDockIcon, setShowDockIcon }: any) {
+function GeneralSettings({ theme, setTheme, sendKey, setSendKey, showPricing, setShowPricing, showConversationSettings, setShowConversationSettings, globalHotkey, setGlobalHotkey, onRestartOnboarding, titleGenerationModel, setTitleGenerationModel, providers, showDockIcon, setShowDockIcon, demoMode, setDemoMode }: any) {
   const handleClearHotkey = () => {
     setGlobalHotkey('')
   }
@@ -584,6 +586,29 @@ function GeneralSettings({ theme, setTheme, sendKey, setSendKey, showPricing, se
       </div>
 
       <div>
+        <h3 className="text-lg font-medium mb-4">Demo Mode</h3>
+        <div className="space-y-4">
+          <div className="flex items-start gap-3">
+            <input
+              type="checkbox"
+              id="demoMode"
+              checked={demoMode}
+              onChange={(e) => setDemoMode(e.target.checked)}
+              className="mt-1 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+            />
+            <div className="flex-1">
+              <label htmlFor="demoMode" className="text-sm font-medium cursor-pointer">
+                Enable demo mode
+              </label>
+              <p className="text-xs text-muted-foreground mt-1">
+                Replaces all providers with a demo provider that returns fun facts about Open Chat. Your real providers are hidden but not deleted.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div>
         <h3 className="text-lg font-medium mb-4">Getting Started</h3>
         <div className="space-y-4">
           <div className="flex items-start justify-between">
@@ -644,9 +669,10 @@ interface ModelsSettingsProps {
   onUpdateProvider: (providerId: string, updates: { apiKey?: string }) => Promise<void>
   onRemoveProvider: (providerId: string) => Promise<void>
   onRefreshModels: (providerId: string) => Promise<void>
+  demoMode?: boolean
 }
 
-function ModelsSettings({ providers: providersData, onToggleModel, onCapabilityToggle, onAddProvider, onUpdateProvider, onRemoveProvider, onRefreshModels }: ModelsSettingsProps) {
+function ModelsSettings({ providers: providersData, onToggleModel, onCapabilityToggle, onAddProvider, onUpdateProvider, onRemoveProvider, onRefreshModels, demoMode }: ModelsSettingsProps) {
   const [expandedProviders, setExpandedProviders] = useState<Set<string>>(new Set())
   const [showApiKeyModal, setShowApiKeyModal] = useState<string | null>(null)
   const [newApiKey, setNewApiKey] = useState('')
@@ -1285,7 +1311,22 @@ function ModelsSettings({ providers: providersData, onToggleModel, onCapabilityT
           </p>
         </div>
         <button
-          onClick={() => setShowAddProvider(true)}
+          onClick={() => {
+            if (demoMode) {
+              // @ts-ignore
+              if (window.showToast) {
+                // @ts-ignore
+                window.showToast({
+                  type: 'info',
+                  title: 'Demo Mode',
+                  message: 'Adding providers is not supported in demo mode',
+                  duration: 3000
+                })
+              }
+              return
+            }
+            setShowAddProvider(true)
+          }}
           className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
         >
           <Plus className="h-4 w-4" />

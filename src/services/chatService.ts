@@ -2,6 +2,7 @@ import { type CreateMessageInput, messageStore } from '../shared/messageStore'
 import { functionCallingService } from './functionCallingService'
 import { tokenService } from './tokenService'
 import { convertToolsToAnthropicFormat } from '../types/search'
+import { DEMO_PROVIDER, getRandomFunFact } from './demoMode'
 
 interface OpenAIMessage {
   role: 'system' | 'user' | 'assistant' | 'tool'
@@ -302,7 +303,34 @@ class ChatService {
     signal?: AbortSignal
     startTime: number
   }): Promise<CreateMessageInput> {
-    
+
+    // Demo mode: return a fun fact instead of making an API call
+    if (modelConfig.provider === DEMO_PROVIDER.id) {
+      const funFact = getRandomFunFact()
+
+      // Wait 1 second before streaming
+      await new Promise(resolve => setTimeout(resolve, 1000))
+
+      // Stream character by character
+      for (const char of funFact) {
+        if (signal?.aborted) break
+        onStreamChunk?.(char, modelId)
+        await new Promise(resolve => setTimeout(resolve, 15))
+      }
+
+      const assistantMessage: CreateMessageInput = {
+        role: 'assistant',
+        text: funFact,
+        processing_time_ms: Date.now() - startTime,
+        previous_message_id: userMessageId,
+        provider: modelConfig.provider,
+        model: modelConfig.model
+      }
+
+      onStreamComplete?.(assistantMessage, modelId)
+      return assistantMessage
+    }
+
     // Get conversation history (only for persistent conversations)
     const conversationHistory = typeof conversationId === 'number' 
       ? await messageStore.getMessages(conversationId)

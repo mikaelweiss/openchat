@@ -58,4 +58,5 @@ export const SETTINGS_KEYS = {
   HAS_SHOWN_INTRO: 'hasShownIntro',
   TITLE_GENERATION_MODEL: 'titleGenerationModel',
   SHOW_DOCK_ICON: 'showDockIcon',
+  DEMO_MODE: 'demoMode',
 } as const

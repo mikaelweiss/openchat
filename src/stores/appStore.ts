@@ -7,6 +7,7 @@ import { settings, SETTINGS_KEYS } from '../shared/settingsStore'
 import { type Provider } from '../types/provider'
 import { telemetryService } from '../services/telemetryService'
 import { messageSync } from '../utils/messageSync'
+import { DEMO_PROVIDER } from '../services/demoMode'
 
 // Pending conversation type (exists only in memory until first message)
 export interface PendingConversation {
@@ -472,6 +473,11 @@ export const useAppStore = create<AppState>()(
     // Provider actions
     loadProviders: async () => {
       try {
+        const demoMode = await settings.get<boolean>(SETTINGS_KEYS.DEMO_MODE) || false
+        if (demoMode) {
+          set({ providers: { [DEMO_PROVIDER.id]: DEMO_PROVIDER }, isProvidersLoaded: true })
+          return
+        }
         const providers = await settings.get<Record<string, Provider>>(SETTINGS_KEYS.PROVIDERS) || {}
         set({ providers, isProvidersLoaded: true })
       } catch (error) {

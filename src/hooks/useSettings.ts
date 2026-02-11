@@ -20,6 +20,7 @@ export interface AppSettings {
   userName: string
   titleGenerationModel: string | null
   showDockIcon: boolean
+  demoMode: boolean
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -32,7 +33,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   userName: '',
   providers: {},
   titleGenerationModel: null,
-  showDockIcon: true
+  showDockIcon: true,
+  demoMode: false
 }
 
 // Singleton settings manager to ensure all hook instances share the same state
@@ -69,6 +71,7 @@ const settingsManager = new SettingsManager()
 export function useSettings() {
   const [, forceUpdate] = useState({})
   const updateProviders = useAppStore((state) => state.updateProviders)
+  const loadProviders = useAppStore((state) => state.loadProviders)
   
   // Subscribe to settings manager updates
   useEffect(() => {
@@ -197,6 +200,11 @@ export function useSettings() {
       if (key === 'providers') {
         updateProviders((value as Record<string, Provider>) || {})
       }
+
+      // Reload providers when demo mode changes
+      if (key === 'demoMode') {
+        await loadProviders()
+      }
       
       settingsManager.updateSettings(newSettings)
       
@@ -261,6 +269,9 @@ export function useSettings() {
     await updateSetting('showConversationSettings', show)
   }
 
+  const handleDemoModeChange = async (enabled: boolean) => {
+    await updateSetting('demoMode', enabled)
+  }
 
   const handleToggleModel = async (providerId: string, modelName: string, enabled: boolean) => {
     const provider = settingsManager.settings.providers[providerId]
@@ -586,7 +597,7 @@ export function useSettings() {
     userName: settingsManager.settings.userName,
     titleGenerationModel: settingsManager.settings.titleGenerationModel,
     showDockIcon: settingsManager.settings.showDockIcon,
-    
+    demoMode: settingsManager.settings.demoMode,
     // State
     isLoading: settingsManager.isLoading,
     
@@ -603,6 +614,7 @@ export function useSettings() {
     handleGlobalHotkeyChange,
     handleShowPricingChange,
     handleShowConversationSettingsChange,
+    handleDemoModeChange,
     handleToggleModel,
     handleCapabilityToggle,
     handleUserNameChange,

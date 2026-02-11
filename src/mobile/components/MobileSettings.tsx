@@ -30,7 +30,9 @@ interface MobileSettingsProps {
 export default function MobileSettings({ onBack }: MobileSettingsProps) {
   const {
     theme,
+    demoMode,
     handleThemeChange,
+    handleDemoModeChange,
     addProvider,
     updateProvider,
     removeProvider,
@@ -135,10 +137,45 @@ export default function MobileSettings({ onBack }: MobileSettingsProps) {
           </section>
 
           <section>
+            <h2 className="text-sm font-semibold text-muted-foreground mb-3 px-1">DEMO MODE</h2>
+            <div className="bg-card rounded-2xl border border-border/20 overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3">
+                <div className="flex-1">
+                  <span className="text-foreground/90 font-medium">Demo Mode</span>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Use a demo provider with fun facts instead of real AI
+                  </p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={demoMode}
+                  onChange={(e) => handleDemoModeChange(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                />
+              </div>
+            </div>
+          </section>
+
+          <section>
             <div className="flex items-center justify-between mb-3 px-1">
               <h2 className="text-sm font-semibold text-muted-foreground">PROVIDERS</h2>
               <button
-                onClick={() => setShowAddProvider(true)}
+                onClick={() => {
+                  if (demoMode) {
+                    // @ts-ignore
+                    if (window.showToast) {
+                      // @ts-ignore
+                      window.showToast({
+                        type: 'info',
+                        title: 'Demo Mode',
+                        message: 'Adding providers is not supported in demo mode',
+                        duration: 3000
+                      })
+                    }
+                    return
+                  }
+                  setShowAddProvider(true)
+                }}
                 className="flex items-center gap-1 text-sm text-primary"
               >
                 <Plus className="h-4 w-4" />

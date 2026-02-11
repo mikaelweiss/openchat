@@ -7,6 +7,7 @@ All notable changes to Open Chat will be documented in this file.
 - Menu bar icon for quick access to mini chat window
 - Setting to toggle dock icon visibility
 - Pressing ⌘, in the mini chat window now opens the main app
+- Added demo mode toggle in Settings that replaces AI providers with a demo provider returning fun facts about Open Chat
 
 ### Changed
 - Closing the main window now hides to menu bar instead of quitting
