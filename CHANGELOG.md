@@ -3,6 +3,8 @@
 All notable changes to Open Chat will be documented in this file.
 
 ## [Unreleased]
+
+## [1.0.0] - 2026-02-11
 ### Added
 - Menu bar icon for quick access to mini chat window
 - Setting to toggle dock icon visibility
