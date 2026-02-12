@@ -40,6 +40,7 @@ targets:
       - path: Sources
       - path: Assets.xcassets
       - path: Externals
+        buildPhase: none
       - path: open-chat_iOS
       - path: assets
         buildPhase: resources
@@ -61,7 +62,7 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         CFBundleShortVersionString: 1.0.0
-        CFBundleVersion: "3"
+        CFBundleVersion: "5"
     entitlements:
       path: open-chat_iOS/open-chat_iOS.entitlements
     scheme:

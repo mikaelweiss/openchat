@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-ARCHIVE_PATH="$ROOT/src-tauri/gen/apple/build/arm64/open-chat_iOS.xcarchive"
+ARCHIVE_PATH="$ROOT/src-tauri/gen/apple/build/open-chat_iOS.xcarchive"
 EXPORT_OPTIONS="$ROOT/scripts/ExportOptions.ios.plist"
 
 BUMP_VERSION=""
@@ -38,7 +38,6 @@ bump_ios_build() {
     sed -i '' "s/\"bundleVersion\": \"[0-9]*\"/\"bundleVersion\": \"$BUILD\"/" "$ROOT/src-tauri/tauri.conf.json"
     sed -i '' "s/CFBundleVersion: \"[0-9]*\"/CFBundleVersion: \"$BUILD\"/" "$ROOT/src-tauri/gen/apple/project.yml"
     sed -i '' "/<key>CFBundleVersion<\/key>/{n;s/<string>[0-9]*<\/string>/<string>$BUILD<\/string>/;}" "$ROOT/src-tauri/gen/apple/open-chat_iOS/Info.plist"
-    sed -i '' "s/CURRENT_PROJECT_VERSION = [0-9]*/CURRENT_PROJECT_VERSION = $BUILD/g" "$ROOT/src-tauri/gen/apple/open-chat.xcodeproj/project.pbxproj"
     echo "  iOS build number → $BUILD"
 }
 
@@ -53,6 +52,12 @@ if [[ "$BUMP_BUILD" == true ]]; then
     NEW_BUILD=$((CURRENT_BUILD + 1))
     echo "==> Bumping iOS build number"
     bump_ios_build "$NEW_BUILD"
+fi
+
+PBXPROJ="$ROOT/src-tauri/gen/apple/open-chat.xcodeproj/project.pbxproj"
+if [[ ! -f "$PBXPROJ" ]]; then
+    echo "==> Generating Xcode project from project.yml..."
+    (cd "$ROOT/src-tauri/gen/apple" && xcodegen generate)
 fi
 
 echo "==> Version: $(get_version)"
