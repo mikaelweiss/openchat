@@ -177,6 +177,36 @@ Settings are stored in a separate key-value store (`settings.json`), and API key
 - Database uses foreign key constraints for data integrity
 - Secure inter-process communication between frontend and Tauri backend
 
+### How API Keys Are Stored
+
+API keys are never written to plain-text configuration files. Instead, Open Chat uses **platform-specific secure storage** so that each operating system's native credential manager protects your keys at rest.
+
+#### Storage by Platform
+
+| Platform | Storage Backend | Details |
+|----------|----------------|---------|
+| **macOS** | System Keychain | Uses `tauri-plugin-keyring` → macOS Keychain Services |
+| **Windows** | Credential Manager | Uses `tauri-plugin-keyring` → Windows Credential Vault |
+| **Linux** | Secret Service | Uses `tauri-plugin-keyring` → `libsecret` / GNOME Keyring |
+| **iOS** | Apple Keychain | Native Rust call via `Security.framework` with `kSecAttrAccessibleAfterFirstUnlock` |
+| **Android** | Encrypted file | XOR-encrypted file (`keys.enc`) in app-private storage (not production-grade; a future version should migrate to Android Keystore) |
+
+#### How It Works
+
+1. **User enters an API key** in Settings → Providers.
+2. **`saveApiKey(providerId, apiKey)`** in `src/utils/secureStorage.ts` detects the current platform and delegates to the appropriate backend:
+   - **Desktop** → `tauri-plugin-keyring` (system keyring)
+   - **iOS** → Tauri command that calls Apple's `SecItemAdd` / `SecItemUpdate`
+   - **Android / dev mode** → encrypted file storage
+3. **The key is cached in memory** for fast retrieval during the session.
+4. **Only a `hasApiKey: true` flag** is persisted in the settings store (`settings.json`)—the actual secret never appears there.
+
+When the app needs the key for an API call, `getApiKey()` checks the in-memory cache first, then falls back to the platform-specific store.
+
+#### Key Format
+
+Keys are stored under the service name `open-chat` with the identifier `provider-{providerId}` (e.g., `provider-anthropic`, `provider-openai`).
+
 ## Contributing
 
 1. Fork the repository
