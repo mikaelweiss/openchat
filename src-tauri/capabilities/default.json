@@ -36,6 +36,10 @@
     "core:window:allow-unminimize",
     "core:window:allow-hide",
     {
+      "identifier": "http:default",
+      "allow": [{ "url": "https://**" }, { "url": "http://**" }]
+    },
+    {
       "identifier": "fs:allow-exists",
       "allow": [{ "path": "$APPDATA/keys.enc" }]
     },

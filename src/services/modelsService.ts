@@ -1,4 +1,5 @@
 import { ModelCapabilities } from '../types/provider'
+import { httpFetch } from '../utils/httpClient'
 
 export interface OpenRouterModel {
   id: string
@@ -50,7 +51,7 @@ class ModelsService {
     }
 
     try {
-      const response = await fetch('https://openrouter.ai/api/v1/models', {
+      const response = await httpFetch('https://openrouter.ai/api/v1/models', {
         headers: {
           'Content-Type': 'application/json'
         }
@@ -124,7 +125,7 @@ class ModelsService {
         }
       }
 
-      const response = await fetch(modelsEndpoint, { headers })
+      const response = await httpFetch(modelsEndpoint, { headers })
 
       if (!response.ok) {
         throw new Error(`Provider API error: ${response.status} ${response.statusText}`)

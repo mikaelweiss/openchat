@@ -1,6 +1,7 @@
 import { toolService } from './toolService'
 import { type CreateMessageInput } from '../shared/messageStore'
 import { convertToolsToAnthropicFormat } from '../types/search'
+import { httpFetch } from '../utils/httpClient'
 
 interface OpenAIMessage {
   role: 'system' | 'user' | 'assistant' | 'tool'
@@ -475,8 +476,8 @@ class FunctionCallingService {
     // Build endpoint URL
     const chatEndpoint = this.buildChatEndpoint(modelConfig.endpoint)
 
-    // Make the API call
-    const response = await fetch(chatEndpoint, {
+    // Make the API call (using Tauri HTTP plugin to bypass CORS)
+    const response = await httpFetch(chatEndpoint, {
       method: 'POST',
       headers,
       body: JSON.stringify(requestPayload),
@@ -621,8 +622,8 @@ class FunctionCallingService {
     // Build endpoint URL
     const chatEndpoint = this.buildChatEndpoint(modelConfig.endpoint)
 
-    // Make the API call
-    const response = await fetch(chatEndpoint, {
+    // Make the API call (using Tauri HTTP plugin to bypass CORS)
+    const response = await httpFetch(chatEndpoint, {
       method: 'POST',
       headers,
       body: JSON.stringify(requestPayload),

@@ -4,6 +4,7 @@ import { tokenService } from './tokenService'
 import { convertToolsToAnthropicFormat } from '../types/search'
 import { getRandomFunFact } from './demoMode'
 import { settings, SETTINGS_KEYS } from '../shared/settingsStore'
+import { httpFetch } from '../utils/httpClient'
 
 interface OpenAIMessage {
   role: 'system' | 'user' | 'assistant' | 'tool'
@@ -472,8 +473,8 @@ class ChatService {
     // Build endpoint URL
     const chatEndpoint = this.buildChatEndpoint(modelConfig.endpoint)
 
-    // Make the API call
-    const response = await fetch(chatEndpoint, {
+    // Make the API call (using Tauri HTTP plugin to bypass CORS)
+    const response = await httpFetch(chatEndpoint, {
       method: 'POST',
       headers,
       body: JSON.stringify(requestPayload),
