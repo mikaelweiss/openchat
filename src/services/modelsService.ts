@@ -1,5 +1,6 @@
 import { ModelCapabilities } from '../types/provider'
 import { httpFetch } from '../utils/httpClient'
+import { isNativeOllamaEndpoint } from '../utils/providerEndpoints'
 
 export interface OpenRouterModel {
   id: string
@@ -114,7 +115,7 @@ class ModelsService {
         }
       }
       // Ollama specific handling
-      else if (endpoint.includes('ollama') || endpoint.includes('11434')) {
+      else if (isNativeOllamaEndpoint(endpoint)) {
         modelsEndpoint = endpoint.replace('/v1', '') + '/api/tags'
       }
       // Standard OpenAI-compatible endpoints
@@ -135,7 +136,7 @@ class ModelsService {
 
 
       // Handle different response formats
-      if (endpoint.includes('ollama') || endpoint.includes('11434')) {
+      if (isNativeOllamaEndpoint(endpoint)) {
         return (data.models || []).map((model: any) => ({
           id: model.name || model.model,
           object: 'model',

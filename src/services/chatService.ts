@@ -5,6 +5,7 @@ import { convertToolsToAnthropicFormat } from '../types/search'
 import { getRandomFunFact } from './demoMode'
 import { settings, SETTINGS_KEYS } from '../shared/settingsStore'
 import { httpFetch } from '../utils/httpClient'
+import { isNativeOllamaEndpoint } from '../utils/providerEndpoints'
 
 interface OpenAIMessage {
   role: 'system' | 'user' | 'assistant' | 'tool'
@@ -341,7 +342,7 @@ class ChatService {
     
     // Detect provider type for proper formatting
     const isAnthropic = modelConfig.endpoint.includes('anthropic.com')
-    const isOllama = modelConfig.endpoint.includes('ollama') || modelConfig.endpoint.includes('11434')
+    const isOllama = isNativeOllamaEndpoint(modelConfig.endpoint)
     
     // Build provider-compatible messages array
     const messages: OpenAIMessage[] = []
@@ -577,7 +578,7 @@ class ChatService {
     }
     
     // Special case for Ollama
-    if (endpoint.includes('ollama') || endpoint.includes('11434')) {
+    if (isNativeOllamaEndpoint(endpoint)) {
       return endpoint.replace('/v1', '') + '/api/chat'
     }
     

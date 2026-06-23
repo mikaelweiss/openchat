@@ -2,6 +2,7 @@ import { toolService } from './toolService'
 import { type CreateMessageInput } from '../shared/messageStore'
 import { convertToolsToAnthropicFormat } from '../types/search'
 import { httpFetch } from '../utils/httpClient'
+import { isNativeOllamaEndpoint } from '../utils/providerEndpoints'
 
 interface OpenAIMessage {
   role: 'system' | 'user' | 'assistant' | 'tool'
@@ -704,7 +705,7 @@ class FunctionCallingService {
     }
 
     // Special case for Ollama
-    if (endpoint.includes('ollama') || endpoint.includes('11434')) {
+    if (isNativeOllamaEndpoint(endpoint)) {
       return endpoint.replace('/v1', '') + '/api/chat'
     }
 

@@ -1,4 +1,5 @@
 import { getApiKey } from '../utils/secureStorage'
+import { isNativeOllamaEndpoint } from '../utils/providerEndpoints'
 
 export interface TitleGenerationConfig {
   provider: string
@@ -24,7 +25,7 @@ class TitleGenerationService {
 
     // Detect provider type for proper formatting
     const isAnthropic = config.endpoint.includes('anthropic.com')
-    const isOllama = config.endpoint.includes('ollama') || config.endpoint.includes('11434')
+    const isOllama = isNativeOllamaEndpoint(config.endpoint)
 
     // Create a prompt for title generation
     const systemPrompt = "Generate a short, descriptive title (maximum 50 characters) for a conversation based on the user's message. Return only the title, no quotes or additional text."
@@ -220,7 +221,7 @@ class TitleGenerationService {
     }
     
     // Special case for Ollama
-    if (endpoint.includes('ollama') || endpoint.includes('11434')) {
+    if (isNativeOllamaEndpoint(endpoint)) {
       return endpoint.replace('/v1', '') + '/api/chat'
     }
     

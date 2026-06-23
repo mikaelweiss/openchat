@@ -796,6 +796,13 @@ function ModelsSettings({ providers: providersData, onToggleModel, onCapabilityT
       apiKeyUrl: 'https://dashboard.cohere.ai/api-keys'
     },
     {
+      id: 'ollama-cloud',
+      name: 'Ollama Cloud',
+      endpoint: 'https://ollama.com/v1',
+      description: 'Hosted open models (gpt-oss, DeepSeek, Qwen) via Ollama Cloud',
+      apiKeyUrl: 'https://ollama.com/settings/keys'
+    },
+    {
       id: 'local',
       name: 'Local',
       endpoint: 'http://localhost:11434',
