@@ -3,6 +3,8 @@
 All notable changes to Open Chat will be documented in this file.
 
 ## [Unreleased]
+
+## [1.0.3] - 2026-06-23
 ### Added
 - Added Ollama Cloud as a built-in provider option
 
