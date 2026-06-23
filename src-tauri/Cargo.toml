@@ -1,6 +1,6 @@
 [package]
 name = "open-chat"
-version = "1.0.2"
+version = "1.0.3"
 description = "One interface, any provider."
 authors = ["you"]
 edition = "2021"
@@ -57,3 +57,9 @@ lto = true # Enables link-time-optimizations.
 opt-level = "s" # Prioritizes small binary size. Use `3` if you prefer speed.
 panic = "abort" # Higher performance by disabling panic handlers.
 strip = true # Ensures debug symbols are removed.
+
+# Stripping proc-macro dylibs corrupts their __LINKEDIT on the current macOS
+# linker, so dyld refuses to load them during the build. Keep build-time crates
+# unstripped; the final binary above is still stripped.
+[profile.release.build-override]
+strip = false
