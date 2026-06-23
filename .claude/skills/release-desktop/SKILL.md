@@ -6,7 +6,7 @@ user-invocable: true
 
 # Release a new desktop version via GitHub
 
-Pushing a `vX.Y.Z` tag triggers the `publish` workflow (`.github/workflows/main.yml`), which builds the Intel + Apple-Silicon apps and creates a **draft** GitHub release with the changelog notes and the auto-updater/Homebrew artifacts.
+Pushing a `vX.Y.Z` tag triggers the `publish` workflow (`.github/workflows/main.yml`), which builds the Intel + Apple-Silicon apps and creates a **published** GitHub release with the changelog notes and the auto-updater/Homebrew artifacts.
 
 This is the direct-download / auto-update / Homebrew channel — **not** the Mac App Store. (The App Store `.pkg` + Transporter flow lives in `scripts/release-desktop.sh` and is not used here.)
 
@@ -79,7 +79,7 @@ The tag push triggers the `publish` workflow via its `push: tags: 'v*'` trigger.
 ### Step 7: Report
 
 - Show the run: `gh run list --workflow=main.yml -L 1`, and give the run URL: `https://github.com/mikaelweiss/openchat/actions/runs/<run-id>`.
-- Tell the user the build takes ~8–9 minutes and creates a **draft** release `vX.Y.Z`. They must open the release and click **Publish** for the auto-updater and Homebrew cask to pick it up.
+- Tell the user the build takes ~8–9 minutes and then **publishes** the release `vX.Y.Z` automatically — the auto-updater and Homebrew cask pick it up once the run finishes. No manual Publish step.
 - Offer to watch it: `gh run watch <run-id> --exit-status`.
 
 ## Error Handling
